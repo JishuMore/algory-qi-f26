@@ -1,72 +1,54 @@
-"""Homework 1 self-check. Does your environment actually work?
+import requests 
 
-    python check_hw01.py
+# Get series information for KXHIGHNY
+url = "https://external-api.kalshi.com/trade-api/v2/series/KXHIGHNY"
+response = requests.get(url)
+series_data = response.json()
 
-Checks your setup rather than your answers, because that is what Homework 1 is
-really about. Self-contained: you only need this one file.
-"""
-import sys, pathlib
+print(f"Series Title: {series_data['series']['title']}")
+print(f"Frequency: {series_data['series']['frequency']}")
+print(f"Category: {series_data['series']['category']}")
 
-G, R, D, B, OFF = "\033[32m", "\033[31m", "\033[2m", "\033[1m", "\033[0m"
-ok = True
+# Get all open markets for the KXHIGHNY series
+markets_url = f"https://external-api.kalshi.com/trade-api/v2/markets?series_ticker=KXHIGHNY&status=open"
+markets_response = requests.get(markets_url)
+markets_data = markets_response.json()
 
-print(f"\n{B}Homework 1 self-check: your environment{OFF}\n")
+print(f"\nActive markets in KXHIGHNY series:")
+for market in markets_data['markets']:
+    print(f"- {market['ticker']}: {market['title']}")
+    print(f"  Event: {market['event_ticker']}")
+    print(f"  Yes Price: ${market['yes_bid_dollars']} | Volume: {market['volume_fp']}")
+    print()
 
-v = sys.version_info
-good = v >= (3, 9)
-print(f"  {G + 'pass' + OFF if good else R + 'FAIL' + OFF}  Python {v.major}.{v.minor}.{v.micro}")
-if not good:
-    print(f"        {D}You need Python 3.9 or newer.{OFF}")
-    ok = False
+# Get details for a specific event if you have its ticker
+if markets_data['markets']:
+    # Let's get details for the first market's event
+    event_ticker = markets_data['markets'][0]['event_ticker']
+    event_url = f"https://external-api.kalshi.com/trade-api/v2/events/{event_ticker}"
+    event_response = requests.get(event_url)
+    event_data = event_response.json()
 
-for pkg, why in [("yfinance", "pulls market data"),
-                 ("pandas", "holds the data"),
-                 ("numpy", "does the arithmetic"),
-                 ("matplotlib", "draws the plots"),
-                 ("sklearn", "the models, from Session 7 onward")]:
-    try:
-        mod = __import__(pkg)
-        print(f"  {G}pass{OFF}  {pkg:<12} {D}{getattr(mod, '__version__', '?'):<10} {why}{OFF}")
-    except ImportError:
-        install = "scikit-learn" if pkg == "sklearn" else pkg
-        print(f"  {R}FAIL{OFF}  {pkg:<12} {D}not installed. Run: pip install {install}{OFF}")
-        ok = False
+    print(f"Event Details:")
+    print(f"Title: {event_data['event']['title']}")
+    print(f"Category: {event_data['event']['category']}")
 
-try:
-    import yfinance as yf
-    hist = yf.Ticker("AAPL").history(period="10d")
-    closes = hist["Close"].dropna() if len(hist) else hist
-    if len(closes):
-        # the most recent bar is often today's, still open, and comes back
-        # empty. Drop it, or you will chase the same thing in your own code.
-        print(f"  {G}pass{OFF}  market data   {D}pulled {len(hist)} days of AAPL, last complete "
-              f"close {float(closes.iloc[-1]):.2f} on {closes.index[-1].date()}{OFF}")
-    else:
-        print(f"  {R}FAIL{OFF}  market data   {D}yfinance returned no usable prices. "
-              f"Check your connection.{OFF}")
-        ok = False
-except Exception as e:
-    print(f"  {R}FAIL{OFF}  market data   {D}{type(e).__name__}: {e}{OFF}")
-    ok = False
+    # Get orderbook for a specific market
+# Replace with an actual market ticker from the markets list
+if not markets_data['markets']:
+    raise ValueError("No open markets found. Try removing status=open or choose another series.")
 
-try:
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(); ax.plot([1, 2, 3])
-    out = pathlib.Path(__file__).parent / "_plot_test.png"
-    fig.savefig(out); plt.close(fig)
-    size = out.stat().st_size; out.unlink()
-    print(f"  {G}pass{OFF}  plotting      {D}wrote and removed a {size:,}-byte PNG{OFF}")
-except Exception as e:
-    print(f"  {R}FAIL{OFF}  plotting      {D}{type(e).__name__}: {e}{OFF}")
-    ok = False
+market_ticker = markets_data['markets'][0]['ticker']
+orderbook_url = f"https://external-api.kalshi.com/trade-api/v2/markets/{market_ticker}/orderbook"
 
-print()
-if ok:
-    print(f"{G}Your environment is ready.{OFF}")
-    print(f"{D}Now do the rest of Homework 1: pick a ticker, pull a year, and look at it.{OFF}\n")
-else:
-    print(f"{R}Fix what failed above before Homework 2.{OFF}")
-    print(f"{D}Come to office hours rather than losing an evening to an install problem.{OFF}\n")
-sys.exit(0 if ok else 1)
+orderbook_response = requests.get(orderbook_url)
+orderbook_data = orderbook_response.json()
+
+print(f"\nOrderbook for {market_ticker}:")
+print("YES BIDS:")
+for price_dollars, count_fp in orderbook_data['orderbook_fp']['yes_dollars'][:5]:  # Show top 5
+    print(f"  Price: ${price_dollars}, Quantity: {count_fp}")
+
+print("\nNO BIDS:")
+for price_dollars, count_fp in orderbook_data['orderbook_fp']['no_dollars'][:5]:  # Show top 5
+    print(f"  Price: ${price_dollars}, Quantity: {count_fp}")
