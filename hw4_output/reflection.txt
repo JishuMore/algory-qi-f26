@@ -1,0 +1,7 @@
+My daily PO3-inspired strategy returned 0.56% annualised in training and 0.61% in the test period, a change of +0.04 percentage points. In the test set, it lost to buy-and-hold, which returned 15.20% annualised. The strategy's maximum drawdown was 7.90%, compared with 33.79% for the index; it was invested 4.02% of evaluated days.
+
+I tested eight variants and selected the best training return from four PO3 proxies before evaluating the final rule once on the test set. Selection creates a risk of fitting noise, and holding cash can miss large gains. This experiment tests a daily range-sweep-recovery idea, not the actual 10AM method: closes do not reveal intraday wicks, fair value gaps, entry fills, stops, or session targets.
+
+I would not commit my own money based on this result alone. I would need an independently reserved future period, plausible execution after each signal, transaction costs, and stability across nearby parameters. Testing the original method would additionally require intraday OHLC data and explicit entry/exit definitions.
+
+PERSONAL RESPONSE TO COMPLETE: Was the result surprising to you, and why? Replace this line with your own reaction before submitting.

@@ -1,0 +1,70 @@
+HW4 - Jay Jiang | ^SP500TR | annualisation: 252 trading days
+Q1: Training/test split
+Training: 5,469 closes; mean 1358.7839; 1990-01-02 through 2011-09-09
+Test: 3,790 closes; mean 6931.1967; 2011-09-12 through 2026-10-07
+2011-09-10 is a Saturday: inclusive slicing creates no shared observation.
+Each set has its own 60-close warm-up; only later returns are evaluated.
+
+Q2-Q4: Always-hold matches index exactly; always-cash is exactly 0%.
+Always hold (training)
+  Strategy: total 432.27%; annualised 8.10%; maximum drawdown 55.25%
+  Index: total 432.27%; annualised 8.10%; maximum drawdown 55.25%
+  Days invested: 100.00%
+Always cash (training)
+  Strategy: total 0.00%; annualised 0.00%; maximum drawdown -0.00%
+  Index: total 432.27%; annualised 8.10%; maximum drawdown 55.25%
+  Days invested: 0.00%
+Random 70% hold, fixed seed 0 (training)
+  Strategy: total 361.36%; annualised 7.38%; maximum drawdown 43.76%
+  Index: total 432.27%; annualised 8.10%; maximum drawdown 55.25%
+  Days invested: 69.88%
+Random result between cash and index: True
+That ordering is a diagnostic, not a mathematical guarantee for random exposure.
+Full-period index annualised return: 11.15%
+
+Q5: Hold unless the previous five-trading-day return is positive.
+Class strategy (training)
+  Strategy: total 206.70%; annualised 5.36%; maximum drawdown 30.44%
+  Index: total 432.27%; annualised 8.10%; maximum drawdown 55.25%
+  Days invested: 43.34%
+
+Q6: Every attempted variant (training only)
+PO3: 15-close range, 3-close sweep/recovery search: annualised -1.05%; invested 5.99%
+PO3: 20-close range, 5-close sweep/recovery search: annualised -0.39%; invested 7.60%
+PO3: 30-close range, 5-close sweep/recovery search: annualised -0.74%; invested 5.97%
+PO3: 20-close range, 5-close search, range width <= 5%: annualised 0.56%; invested 4.10%
+Trend: latest close above 20-close moving average: annualised 2.57%; invested 61.47%
+Momentum: positive previous 15-day return: annualised 4.51%; invested 60.31%
+Mean reversion: latest close below 20-close moving average: annualised 5.39%; invested 38.53%
+Slope: positive least-squares slope across 60 closes: annualised 6.50%; invested 67.79%
+
+Q7: FINAL RULE LOCKED BEFORE TEST
+PO3: 20-close range, 5-close search, range width <= 5%
+Selected by highest training annualised return among FOUR PO3 proxies; eight total variants tried, including four alternative ideas.
+This daily PO3-inspired rule looks for a close below an earlier closing-price range, followed by a recovery above its lower boundary with an upward daily close. It holds the index while that confirmed recovery remains inside the range, using the upper boundary as a closing-price proxy for opposing liquidity. The hypothesis is that a failed downside break may precede a rebound; this hypothesis remains unproven and does not establish the intraday PO3 claims.
+Final strategy (training)
+  Strategy: total 12.83%; annualised 0.56%; maximum drawdown 11.64%
+  Index: total 432.27%; annualised 8.10%; maximum drawdown 55.25%
+  Days invested: 4.10%
+
+Q8: Final strategy, test set - one evaluation, no retuning
+Held-out test
+  Strategy: total 9.35%; annualised 0.61%; maximum drawdown 7.90%
+  Index: total 712.24%; annualised 15.20%; maximum drawdown 33.79%
+  Days invested: 4.02%
+
+Q9: Latest completed-close signal
+CASH; last close used: 2026-10-07
+This is the next-session signal using completed daily closes, not a 10AM signal.
+
+Q10: Data-grounded reflection draft (add your personal reaction)
+My daily PO3-inspired strategy returned 0.56% annualised in training and 0.61% in the test period, a change of +0.04 percentage points. In the test set, it lost to buy-and-hold, which returned 15.20% annualised. The strategy's maximum drawdown was 7.90%, compared with 33.79% for the index; it was invested 4.02% of evaluated days.
+
+I tested eight variants and selected the best training return from four PO3 proxies before evaluating the final rule once on the test set. Selection creates a risk of fitting noise, and holding cash can miss large gains. This experiment tests a daily range-sweep-recovery idea, not the actual 10AM method: closes do not reveal intraday wicks, fair value gaps, entry fills, stops, or session targets.
+
+I would not commit my own money based on this result alone. I would need an independently reserved future period, plausible execution after each signal, transaction costs, and stability across nearby parameters. Testing the original method would additionally require intraday OHLC data and explicit entry/exit definitions.
+
+PERSONAL RESPONSE TO COMPLETE: Was the result surprising to you, and why? Replace this line with your own reaction before submitting.
+
+Assumptions: no fees, slippage, taxes or cash interest; one unit of long exposure or cash; close-to-close execution; no shorts or intraday stops.
+Rerunning after inspecting the test or changing the rule contaminates the holdout.
