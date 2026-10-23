@@ -1,0 +1,153 @@
+RB-games: 7033 (train 5441, test 1592); base rate 7.479%
+
+Univariate scan (sorted by p; q_bh = Benjamini-Hochberg false-discovery-adjusted; test_auc = 2023-24 holdout):
+shape: (50, 7)
+┌───────────────────────┬──────────────────┬──────────┬────────┬──────────┬──────────┬────────┐
+│ feature               ┆ group            ┆ spearman ┆ p      ┆ test_auc ┆ coverage ┆ q_bh   │
+│ ---                   ┆ ---              ┆ ---      ┆ ---    ┆ ---      ┆ ---      ┆ ---    │
+│ str                   ┆ str              ┆ f64      ┆ f64    ┆ f64      ┆ f64      ┆ f64    │
+╞═══════════════════════╪══════════════════╪══════════╪════════╪══════════╪══════════╪════════╡
+│ q4_share              ┆ in-game exit     ┆ -0.118   ┆ 0      ┆ 0.63     ┆ 1        ┆ 0      │
+│ q4_carries            ┆ workload         ┆ -0.088   ┆ 0      ┆ 0.605    ┆ 1        ┆ 0      │
+│ games_since_inj       ┆ injury history   ┆ -0.063   ┆ 0      ┆ 0.549    ┆ 1        ┆ 0      │
+│ st_snaps              ┆ workload         ┆ -0.055   ┆ 0      ┆ 0.533    ┆ 1        ┆ 0      │
+│ season_hits           ┆ contact          ┆ 0.058    ┆ 0      ┆ 0.565    ┆ 1        ┆ 0      │
+│ touches_per_snap      ┆ workload         ┆ 0.056    ┆ 0      ┆ 0.529    ┆ 1        ┆ 0      │
+│ inj_weeks_this_season ┆ injury history   ┆ 0.055    ┆ 0      ┆ 0.54     ┆ 1        ┆ 0      │
+│ carries_spike         ┆ workload         ┆ -0.051   ┆ 0      ┆ 0.548    ┆ 0.895    ┆ 0.0002 │
+│ hits_l3               ┆ contact          ┆ 0.048    ┆ 0.0005 ┆ 0.547    ┆ 1        ┆ 0.0027 │
+│ snap_pct              ┆ workload         ┆ -0.038   ┆ 0.0008 ┆ 0.526    ┆ 1        ┆ 0.0039 │
+│ prev_season_inj_weeks ┆ injury history   ┆ 0.028    ┆ 0.0014 ┆ 0.511    ┆ 1        ┆ 0.0065 │
+│ week                  ┆ game context     ┆ 0.032    ┆ 0.0075 ┆ 0.551    ┆ 1        ┆ 0.0314 │
+│ leading_share         ┆ game context     ┆ -0.026   ┆ 0.0128 ┆ 0.552    ┆ 1        ┆ 0.0491 │
+│ off_snaps             ┆ workload         ┆ -0.028   ┆ 0.0145 ┆ 0.512    ┆ 1        ┆ 0.0517 │
+│ career_hits           ┆ player           ┆ 0.041    ┆ 0.0177 ┆ 0.527    ┆ 1        ┆ 0.0557 │
+│ career_carries        ┆ player           ┆ 0.043    ┆ 0.0178 ┆ 0.525    ┆ 1        ┆ 0.0557 │
+│ targets               ┆ workload         ┆ -0.021   ┆ 0.0215 ┆ 0.483    ┆ 1        ┆ 0.0631 │
+│ receptions            ┆ workload         ┆ -0.012   ┆ 0.0752 ┆ 0.467    ┆ 1        ┆ 0.2089 │
+│ stuffs                ┆ contact          ┆ 0.024    ┆ 0.1554 ┆ 0.531    ┆ 1        ┆ 0.4008 │
+│ shotgun_share         ┆ efficiency/style ┆ -0.014   ┆ 0.1606 ┆ 0.53     ┆ 1        ┆ 0.4008 │
+│ years_exp             ┆ player           ┆ 0.021    ┆ 0.1684 ┆ 0.504    ┆ 1        ┆ 0.4008 │
+│ goal_line_carries     ┆ workload         ┆ -0.011   ┆ 0.2174 ┆ 0.51     ┆ 1        ┆ 0.4942 │
+│ age                   ┆ player           ┆ 0.017    ┆ 0.2444 ┆ 0.503    ┆ 1        ┆ 0.4955 │
+│ air_yards_targets     ┆ efficiency/style ┆ -0.022   ┆ 0.2458 ┆ 0.515    ┆ 0.819    ┆ 0.4955 │
+│ rec_hits              ┆ contact          ┆ -0.003   ┆ 0.2477 ┆ 0.458    ┆ 1        ┆ 0.4955 │
+│ height                ┆ player           ┆ 0.013    ┆ 0.2907 ┆ 0.468    ┆ 1        ┆ 0.5591 │
+│ days_to_next          ┆ game context     ┆ -0.016   ┆ 0.3278 ┆ 0.451    ┆ 1        ┆ 0.5933 │
+│ carries               ┆ workload         ┆ 0.015    ┆ 0.3407 ┆ 0.505    ┆ 1        ┆ 0.5933 │
+│ turf                  ┆ game context     ┆ 0.011    ┆ 0.3577 ┆ 0.487    ┆ 1        ┆ 0.5933 │
+│ guard_share           ┆ contact          ┆ -0.008   ┆ 0.3658 ┆ 0.514    ┆ 0.993    ┆ 0.5933 │
+│ avg_score_diff        ┆ game context     ┆ -0.008   ┆ 0.3679 ┆ 0.534    ┆ 1        ┆ 0.5933 │
+│ temp                  ┆ game context     ┆ -0.014   ┆ 0.4553 ┆ 0.523    ┆ 0.645    ┆ 0.7071 │
+│ long_runs             ┆ efficiency/style ┆ 0.009    ┆ 0.4667 ┆ 0.522    ┆ 1        ┆ 0.7071 │
+│ bmi                   ┆ player           ┆ -0.006   ┆ 0.4896 ┆ 0.49     ┆ 1        ┆ 0.72   │
+│ fumbles               ┆ contact          ┆ 0.01     ┆ 0.5499 ┆ 0.503    ┆ 1        ┆ 0.7498 │
+│ div_game              ┆ game context     ┆ -0.007   ┆ 0.5538 ┆ 0.45     ┆ 1        ┆ 0.7498 │
+│ rush_hits             ┆ contact          ┆ 0.012    ┆ 0.5548 ┆ 0.501    ┆ 1        ┆ 0.7498 │
+│ hits_per_touch        ┆ contact          ┆ 0        ┆ 0.6143 ┆ 0.475    ┆ 1        ┆ 0.7965 │
+│ short_week_next       ┆ game context     ┆ 0.006    ┆ 0.6376 ┆ 0.483    ┆ 1        ┆ 0.7965 │
+│ wind                  ┆ game context     ┆ 0.008    ┆ 0.6441 ┆ 0.439    ┆ 0.645    ┆ 0.7965 │
+│ inside_share          ┆ contact          ┆ -0.001   ┆ 0.6531 ┆ 0.505    ┆ 1        ┆ 0.7965 │
+│ draft_round           ┆ player           ┆ -0.01    ┆ 0.6957 ┆ 0.471    ┆ 0.818    ┆ 0.8024 │
+│ ypc                   ┆ efficiency/style ┆ -0.001   ┆ 0.7026 ┆ 0.52     ┆ 1        ┆ 0.8024 │
+│ gang_tackles          ┆ contact          ┆ 0.001    ┆ 0.7061 ┆ 0.508    ┆ 1        ┆ 0.8024 │
+│ dome                  ┆ game context     ┆ 0.004    ┆ 0.7328 ┆ 0.496    ┆ 1        ┆ 0.8031 │
+│ touches               ┆ workload         ┆ 0.008    ┆ 0.7389 ┆ 0.512    ┆ 1        ┆ 0.8031 │
+│ weight                ┆ player           ┆ 0.01     ┆ 0.7627 ┆ 0.483    ┆ 1        ┆ 0.8113 │
+│ hits                  ┆ contact          ┆ 0.007    ┆ 0.811  ┆ 0.508    ┆ 1        ┆ 0.8448 │
+│ days_since_last       ┆ game context     ┆ 0.001    ┆ 0.8542 ┆ 0.523    ┆ 0.895    ┆ 0.8717 │
+│ home                  ┆ game context     ┆ -0       ┆ 0.9967 ┆ 0.475    ┆ 1        ┆ 0.9967 │
+└───────────────────────┴──────────────────┴──────────┴────────┴──────────┴──────────┴────────┘
+
+XGBoost test AUC by feature group:
+  workload + contact only          0.624
+  workload alone                   0.628
+  contact alone                    0.549
+  efficiency/style alone           0.499
+  game context alone               0.566
+  player alone                     0.546
+  in-game exit alone               0.619
+  injury history alone             0.532
+  all minus workload               0.662
+  all minus contact                0.640
+  all minus efficiency/style       0.640
+  all minus game context           0.633
+  all minus player                 0.640
+  all minus in-game exit           0.647
+  all minus injury history         0.644
+  ALL features                     0.645
+
+Top 15 mean |SHAP| (all-feature model):
+  q4_share                 0.3357
+  snap_pct                 0.2513
+  hits_l3                  0.1888
+  avg_score_diff           0.1090
+  games_since_inj          0.1052
+  touches_per_snap         0.1037
+  air_yards_targets        0.1021
+  gang_tackles             0.0985
+  carries                  0.0928
+  guard_share              0.0842
+  st_snaps                 0.0794
+  temp                     0.0739
+  bmi                      0.0701
+  season_hits              0.0668
+  career_carries           0.0664
+
+Injury rate by weeks on report earlier this season:
+shape: (4, 3)
+┌───────────┬──────┬─────────────────────┐
+│ b         ┆ n    ┆ injury_rate         │
+│ ---       ┆ ---  ┆ ---                 │
+│ enum      ┆ u32  ┆ f64                 │
+╞═══════════╪══════╪═════════════════════╡
+│ (-inf, 0] ┆ 5836 ┆ 0.068368745716244   │
+│ (0, 1]    ┆ 862  ┆ 0.09976798143851508 │
+│ (1, 3]    ┆ 286  ┆ 0.12237762237762238 │
+│ (3, inf]  ┆ 49   ┆ 0.12244897959183673 │
+└───────────┴──────┴─────────────────────┘
+Injury rate by games since last on report:
+shape: (5, 3)
+┌───────────┬──────┬─────────────────────┐
+│ b         ┆ n    ┆ injury_rate         │
+│ ---       ┆ ---  ┆ ---                 │
+│ enum      ┆ u32  ┆ f64                 │
+╞═══════════╪══════╪═════════════════════╡
+│ (-inf, 1] ┆ 290  ┆ 0.1                 │
+│ (1, 3]    ┆ 498  ┆ 0.11244979919678715 │
+│ (3, 8]    ┆ 913  ┆ 0.09419496166484119 │
+│ (8, 98]   ┆ 1764 ┆ 0.08163265306122448 │
+│ (98, inf] ┆ 3568 ┆ 0.05913677130044843 │
+└───────────┴──────┴─────────────────────┘
+Injury rate by age:
+shape: (4, 3)
+┌────────────┬──────┬─────────────────────┐
+│ b          ┆ n    ┆ injury_rate         │
+│ ---        ┆ ---  ┆ ---                 │
+│ enum       ┆ u32  ┆ f64                 │
+╞════════════╪══════╪═════════════════════╡
+│ (-inf, 24] ┆ 2089 ┆ 0.06941120153183342 │
+│ (24, 26]   ┆ 2211 ┆ 0.0741745816372682  │
+│ (26, 28]   ┆ 1435 ┆ 0.0808362369337979  │
+│ (28, inf]  ┆ 1298 ┆ 0.07781201848998459 │
+└────────────┴──────┴─────────────────────┘
+Injury rate by surface (turf=1):
+shape: (2, 3)
+┌──────┬──────┬─────────────────────┐
+│ turf ┆ n    ┆ injury_rate         │
+│ ---  ┆ ---  ┆ ---                 │
+│ i32  ┆ u32  ┆ f64                 │
+╞══════╪══════╪═════════════════════╡
+│ 0    ┆ 3932 ┆ 0.07222787385554426 │
+│ 1    ┆ 3101 ┆ 0.0780393421476943  │
+└──────┴──────┴─────────────────────┘
+Injury rate by short week next (<=5 days):
+shape: (2, 3)
+┌─────────────────┬──────┬─────────────────────┐
+│ short_week_next ┆ n    ┆ injury_rate         │
+│ ---             ┆ ---  ┆ ---                 │
+│ i32             ┆ u32  ┆ f64                 │
+╞═════════════════╪══════╪═════════════════════╡
+│ 0               ┆ 6495 ┆ 0.07436489607390301 │
+│ 1               ┆ 538  ┆ 0.07992565055762081 │
+└─────────────────┴──────┴─────────────────────┘
