@@ -1,0 +1,73 @@
+RB-games: 8129  (train 6270, test 1859)
+Base rate of new injury designation next week: 7.123%
+
+XGBoost test AUC: 0.603   PR-AUC: 0.114 (base 0.076)
+Logistic, carries only AUC: 0.500
+Logistic, hits only    AUC: 0.499
+Logistic, season_hits  AUC: 0.559
+
+Mean |SHAP| (test set):
+  hits_l3                0.1438
+  carries_spike          0.1365
+  gang_tackles           0.1191
+  prev_season_carries    0.1174
+  age                    0.1119
+  carries_l3             0.0894
+  targets                0.0826
+  season_carries         0.0797
+  week                   0.0788
+  weight                 0.0769
+  hits_per_touch         0.0606
+  season_hits            0.0587
+  prev_season_hits       0.0535
+  receptions             0.0532
+  yards                  0.0477
+  carries                0.0389
+  season_games           0.0334
+  hits                   0.0325
+  tfl                    0.0207
+  days_rest_proxy        0.0097
+
+Injury rate by carries this game:
+shape: (6, 3)
+┌───────────┬──────┬─────────────┐
+│ b         ┆ n    ┆ injury_rate │
+│ ---       ┆ ---  ┆ ---         │
+│ enum      ┆ u32  ┆ f64         │
+╞═══════════╪══════╪═════════════╡
+│ (-inf, 5] ┆ 1993 ┆ 0.064727    │
+│ (5, 10]   ┆ 2336 ┆ 0.075771    │
+│ (10, 15]  ┆ 1906 ┆ 0.073977    │
+│ (15, 20]  ┆ 1185 ┆ 0.075105    │
+│ (20, 25]  ┆ 512  ┆ 0.064453    │
+│ (25, inf] ┆ 197  ┆ 0.050761    │
+└───────────┴──────┴─────────────┘
+Injury rate by hits taken this game:
+shape: (7, 3)
+┌───────────┬──────┬─────────────┐
+│ b         ┆ n    ┆ injury_rate │
+│ ---       ┆ ---  ┆ ---         │
+│ enum      ┆ u32  ┆ f64         │
+╞═══════════╪══════╪═════════════╡
+│ (-inf, 5] ┆ 627  ┆ 0.059011    │
+│ (5, 10]   ┆ 1793 ┆ 0.070273    │
+│ (10, 15]  ┆ 1572 ┆ 0.075064    │
+│ (15, 20]  ┆ 1417 ┆ 0.076923    │
+│ (20, 25]  ┆ 1143 ┆ 0.07874     │
+│ (25, 30]  ┆ 781  ┆ 0.06402     │
+│ (30, inf] ┆ 796  ┆ 0.061558    │
+└───────────┴──────┴─────────────┘
+Injury rate by season-to-date hits:
+shape: (6, 3)
+┌────────────┬──────┬─────────────┐
+│ b          ┆ n    ┆ injury_rate │
+│ ---        ┆ ---  ┆ ---         │
+│ enum       ┆ u32  ┆ f64         │
+╞════════════╪══════╪═════════════╡
+│ (-inf, 25] ┆ 1470 ┆ 0.04966     │
+│ (25, 50]   ┆ 1289 ┆ 0.065943    │
+│ (50, 100]  ┆ 1831 ┆ 0.072092    │
+│ (100, 150] ┆ 1214 ┆ 0.07084     │
+│ (150, 200] ┆ 877  ┆ 0.078677    │
+│ (200, inf] ┆ 1448 ┆ 0.092541    │
+└────────────┴──────┴─────────────┘
