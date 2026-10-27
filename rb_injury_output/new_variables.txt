@@ -1,0 +1,88 @@
+RB-games 7733, seasons 2013-2025; any-injury rate 12.182%, major 7.177%
+
+Univariate (sorted by p_event; q = Benjamini-Hochberg across the new variables):
+shape: (27, 11)
+┌──────────────────────────┬──────────────┬──────────┬───────────┬─────────┬───────────┬─────────┬───────────────┬──────────────────┬─────────┬─────────┐
+│ feature                  ┆ group        ┆ coverage ┆ rho_event ┆ p_event ┆ rho_major ┆ p_major ┆ rate_top_half ┆ rate_bottom_half ┆ q_event ┆ q_major │
+│ ---                      ┆ ---          ┆ ---      ┆ ---       ┆ ---     ┆ ---       ┆ ---     ┆ ---           ┆ ---              ┆ ---     ┆ ---     │
+│ str                      ┆ str          ┆ f64      ┆ f64       ┆ f64     ┆ f64       ┆ f64     ┆ f64           ┆ f64              ┆ f64     ┆ f64     │
+╞══════════════════════════╪══════════════╪══════════╪═══════════╪═════════╪═══════════╪═════════╪═══════════════╪══════════════════╪═════════╪═════════╡
+│ no_huddle_share          ┆ team/opp     ┆ 1.0      ┆ -0.0326   ┆ 0.0042  ┆ -0.0169   ┆ 0.1371  ┆ 0.1218        ┆ NaN              ┆ 0.072   ┆ 0.3755  │
+│ team_plays               ┆ team/opp     ┆ 1.0      ┆ 0.0305    ┆ 0.0074  ┆ 0.0208    ┆ 0.0679  ┆ 0.1277        ┆ 0.1151           ┆ 0.072   ┆ 0.294   │
+│ team_rb_inj_rate_prior   ┆ team history ┆ 0.9233   ┆ 0.0314    ┆ 0.008   ┆ 0.0225    ┆ 0.0572  ┆ 0.1292        ┆ 0.1125           ┆ 0.072   ┆ 0.294   │
+│ late_down_touches        ┆ contact type ┆ 1.0      ┆ -0.0265   ┆ 0.0199  ┆ -0.0307   ┆ 0.0069  ┆ 0.116         ┆ 0.135            ┆ 0.1343  ┆ 0.0935  │
+│ oline_stuff_prior        ┆ team/opp     ┆ 0.9084   ┆ 0.0212    ┆ 0.0761  ┆ 0.013     ┆ 0.2758  ┆ 0.1318        ┆ 0.115            ┆ 0.411   ┆ 0.6206  │
+│ neutral                  ┆ schedule/env ┆ 1.0      ┆ -0.0171   ┆ 0.1335  ┆ -0.0074   ┆ 0.516   ┆ 0.1218        ┆ NaN              ┆ 0.6006  ┆ 0.7294  │
+│ contract_year            ┆ player       ┆ 1.0      ┆ -0.0152   ┆ 0.1805  ┆ -0.024    ┆ 0.0348  ┆ 0.1218        ┆ NaN              ┆ 0.6961  ┆ 0.2349  │
+│ heavy_hit_share          ┆ tacklers     ┆ 1.0      ┆ 0.0142    ┆ 0.2122  ┆ 0.0188    ┆ 0.0985  ┆ 0.1256        ┆ 0.1178           ┆ 0.7162  ┆ 0.3325  │
+│ total_line               ┆ schedule/env ┆ 1.0      ┆ 0.0112    ┆ 0.3248  ┆ 0.0328    ┆ 0.0039  ┆ 0.1235        ┆ 0.1199           ┆ 0.8524  ┆ 0.0935  │
+│ oob_share                ┆ contact type ┆ 1.0      ┆ 0.0092    ┆ 0.4176  ┆ -0.0057   ┆ 0.6177  ┆ 0.1263        ┆ 0.1172           ┆ 0.8524  ┆ 0.7581  │
+│ team_spread              ┆ schedule/env ┆ 1.0      ┆ -0.0088   ┆ 0.4403  ┆ -0.0073   ┆ 0.5215  ┆ 0.1216        ┆ 0.1221           ┆ 0.8524  ┆ 0.7294  │
+│ tz_shift                 ┆ schedule/env ┆ 1.0      ┆ 0.0087    ┆ 0.4426  ┆ 0.008     ┆ 0.4811  ┆ 0.1218        ┆ NaN              ┆ 0.8524  ┆ 0.7294  │
+│ night                    ┆ schedule/env ┆ 1.0      ┆ -0.0077   ┆ 0.4961  ┆ 0.0065    ┆ 0.5673  ┆ 0.1218        ┆ NaN              ┆ 0.8524  ┆ 0.7294  │
+│ speed_score              ┆ player       ┆ 0.8222   ┆ -0.0084   ┆ 0.5037  ┆ -0.0284   ┆ 0.0233  ┆ 0.1216        ┆ 0.1241           ┆ 0.8524  ┆ 0.2097  │
+│ thu_mon                  ┆ schedule/env ┆ 1.0      ┆ -0.007    ┆ 0.5411  ┆ -0.0034   ┆ 0.7659  ┆ 0.1218        ┆ NaN              ┆ 0.8524  ┆ 0.8271  │
+│ opp_hits_per_carry_prior ┆ team/opp     ┆ 1.0      ┆ 0.0064    ┆ 0.5755  ┆ -0.0168   ┆ 0.1391  ┆ 0.1215        ┆ 0.1222           ┆ 0.8524  ┆ 0.3755  │
+│ hits_by_db               ┆ tacklers     ┆ 1.0      ┆ -0.0063   ┆ 0.581   ┆ -0.0139   ┆ 0.223   ┆ 0.1211        ┆ 0.123            ┆ 0.8524  ┆ 0.5474  │
+│ tackler_weight_sum       ┆ tacklers     ┆ 1.0      ┆ -0.006    ┆ 0.5975  ┆ -0.0111   ┆ 0.3286  ┆ 0.1195        ┆ 0.1242           ┆ 0.8524  ┆ 0.6337  │
+│ hits_by_dl               ┆ tacklers     ┆ 1.0      ┆ -0.006    ┆ 0.6002  ┆ -0.009    ┆ 0.4265  ┆ 0.1219        ┆ 0.1217           ┆ 0.8524  ┆ 0.7198  │
+│ altitude                 ┆ schedule/env ┆ 1.0      ┆ 0.0052    ┆ 0.6507  ┆ 0.01      ┆ 0.3794  ┆ 0.1218        ┆ NaN              ┆ 0.8524  ┆ 0.6829  │
+│ precip                   ┆ schedule/env ┆ 1.0      ┆ 0.005     ┆ 0.663   ┆ 0.0042    ┆ 0.7115  ┆ 0.1218        ┆ NaN              ┆ 0.8524  ┆ 0.8005  │
+│ open_field_hits          ┆ contact type ┆ 1.0      ┆ 0.0044    ┆ 0.7001  ┆ -0.0117   ┆ 0.3056  ┆ 0.1221        ┆ 0.1215           ┆ 0.8524  ┆ 0.6337  │
+│ carry_share              ┆ team/opp     ┆ 1.0      ┆ 0.004     ┆ 0.7261  ┆ 0.0047    ┆ 0.6785  ┆ 0.1256        ┆ 0.118            ┆ 0.8524  ┆ 0.7965  │
+│ heavy_hits               ┆ tacklers     ┆ 1.0      ┆ 0.0027    ┆ 0.8146  ┆ -0.0005   ┆ 0.9639  ┆ 0.1247        ┆ 0.1184           ┆ 0.9165  ┆ 0.9639  │
+│ hits_by_lb               ┆ tacklers     ┆ 1.0      ┆ 0.002     ┆ 0.8623  ┆ -0.0008   ┆ 0.9411  ┆ 0.1279        ┆ 0.1147           ┆ 0.9289  ┆ 0.9639  │
+│ avg_tackler_weight       ┆ tacklers     ┆ 1.0      ┆ 0.0015    ┆ 0.8945  ┆ 0.007     ┆ 0.5411  ┆ 0.1202        ┆ 0.1234           ┆ 0.9289  ┆ 0.7294  │
+│ forty                    ┆ player       ┆ 0.8228   ┆ 0.0008    ┆ 0.9471  ┆ 0.0222    ┆ 0.0762  ┆ 0.1191        ┆ 0.1268           ┆ 0.9471  ┆ 0.294   │
+└──────────────────────────┴──────────────┴──────────┴───────────┴─────────┴───────────┴─────────┴───────────────┴──────────────────┴─────────┴─────────┘
+
+Binary variables:
+  night          [0] n= 6517 any=0.123 major=0.071  [1] n= 1216 any=0.116 major=0.076
+  thu_mon        [0] n= 7094 any=0.122 major=0.072  [1] n=  639 any=0.114 major=0.069
+  altitude       [0] n= 7489 any=0.122 major=0.071  [1] n=  244 any=0.131 major=0.086
+  precip         [0] n= 7273 any=0.121 major=0.071  [1] n=  460 any=0.128 major=0.076
+  neutral        [0] n= 7657 any=0.122 major=0.072  [1] n=   76 any=0.066 major=0.053
+  contract_year  [0] n= 5421 any=0.125 major=0.076  [1] n= 2312 any=0.114 major=0.062
+
+Walk-forward XGBoost: train on seasons < s, test on s, s in 2018-2025 (8 folds).
+dAUC = mean change vs pre-game baseline, se = std error across folds, wins = folds improved.
+  event  pre-game baseline        AUC=0.573  dAUC=+0.0000 (se 0.0000)  wins 0/8
+  event  + tacklers               AUC=0.571  dAUC=-0.0023 (se 0.0052)  wins 3/8
+  event  + contact type           AUC=0.574  dAUC=+0.0009 (se 0.0028)  wins 4/8
+  event  + team/opp               AUC=0.579  dAUC=+0.0055 (se 0.0073)  wins 5/8
+  event  + schedule/env           AUC=0.580  dAUC=+0.0061 (se 0.0042)  wins 6/8
+  event  + team history           AUC=0.577  dAUC=+0.0039 (se 0.0020)  wins 6/8
+  event  + player                 AUC=0.576  dAUC=+0.0027 (se 0.0067)  wins 5/8
+  event  + ALL new                AUC=0.573  dAUC=-0.0005 (se 0.0106)  wins 4/8
+  event  new variables ONLY       AUC=0.528  dAUC=-0.0456  wins 0/8
+  major  pre-game baseline        AUC=0.517  dAUC=+0.0000 (se 0.0000)  wins 0/8
+  major  + tacklers               AUC=0.515  dAUC=-0.0018 (se 0.0064)  wins 3/8
+  major  + contact type           AUC=0.510  dAUC=-0.0071 (se 0.0065)  wins 3/8
+  major  + team/opp               AUC=0.515  dAUC=-0.0018 (se 0.0047)  wins 4/8
+  major  + schedule/env           AUC=0.517  dAUC=-0.0002 (se 0.0077)  wins 4/8
+  major  + team history           AUC=0.509  dAUC=-0.0080 (se 0.0132)  wins 4/8
+  major  + player                 AUC=0.519  dAUC=+0.0022 (se 0.0022)  wins 5/8
+  major  + ALL new                AUC=0.506  dAUC=-0.0103 (se 0.0123)  wins 4/8
+  major  new variables ONLY       AUC=0.505  dAUC=-0.0114  wins 2/8
+
+Top 20 mean |SHAP|, any-injury model with all variables:
+  snap_pct                   0.1080
+  games_since_inj            0.0959
+  leading_share              0.0953
+  carries_spike              0.0952
+  team_plays                 0.0907   <- new
+  no_huddle_share            0.0897   <- new
+  hits_l3                    0.0886
+  air_yards_targets          0.0780
+  draft_round                0.0758
+  forty                      0.0728   <- new
+  touches_per_snap           0.0712
+  avg_score_diff             0.0562
+  speed_score                0.0517   <- new
+  career_hits                0.0517
+  height                     0.0486
+  avg_tackler_weight         0.0482   <- new
+  temp                       0.0472
+  age                        0.0468
+  season_hits                0.0462
+  team_rb_inj_rate_prior     0.0398   <- new
