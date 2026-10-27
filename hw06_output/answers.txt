@@ -1,0 +1,59 @@
+Q1. COMBINATIONS
+All results are expiration PROFIT, including premiums.
+Illustrative inputs; no fees, interest on premiums, or dividends.
+One option contract controls 100 shares; stock cannot fall below zero.
+
+Covered call: 100 shares at $100 + short 1 call, K=105, premium=3
+Maximum profit: $800; maximum loss: $9,700; break-even: $97.
+
+Protective put: 100 shares at $100 + long 1 put, K=95, premium=2
+Maximum profit: Unlimited; maximum loss: $700; break-even: $102.
+
+Long straddle: Long 1 call (premium=6) + 1 put (premium=5), K=100
+Maximum profit: Unlimited; maximum loss: $1,100; break-even: $89 and $111.
+
+Bull call spread: Long 1 call K=100 (premium=6); short 1 K=105 (premium=3)
+Maximum profit: $200; maximum loss: $300; break-even: $103.
+
+Q2. CALENDAR SPREAD
+A calendar spread cannot be represented by a single expiration payoff diagram because the calls expire at different times: when the one-week short call expires, the three-month long call still has time value that depends on the stock price and remaining implied volatility. If the stock stays near the strike for a week, the short call loses its time value while the longer-dated call generally loses less, which can benefit the spread. The position is typically betting on limited near-term movement and favorable relative time decay, with exposure to changes in longer-term volatility; its profit also depends on the initial debit.
+
+Q3. BLACK-SCHOLES
+S=100, K=100, T=1, r=0.04, sigma=0.25
+Call: $11.84; put: $7.92
+Put-call parity: C-P = 3.921056; S-K*exp(-rT) = 3.921056
+
+Q4. IMPLIED-VOLATILITY ROUND TRIP
+Original: 0.2500; recovered from call: 0.2500; recovered from put: 0.2500
+
+Q5. LIVE IMPLIED VOLATILITY
+Downloaded: 2026-10-26T20:02:55-04:00
+Source: Yahoo Finance via yfinance; https://finance.yahoo.com/quote/SPY/options/
+Ticker: SPY; spot: $765.22; spot timestamp: 2026-10-26 15:59:00-04:00
+Expiration: 2026-11-27; time: 0.087209 years; assumed annual risk-free rate: 4.00%
+Use bid/ask midpoint when available, otherwise bid. All positive-bid calls are attempted.
+Positive-bid calls: 123; solved: 123; skipped: 0.
+Nearest-spot positive-bid strike: $765.00; IV: 14.67%.
+Latest available VIX: 18.39 (2026-10-26 15:14:00-05:00).
+VIX source: https://finance.yahoo.com/quote/%5EVIX/
+VIX measures approximately 30-day S&P 500 option-implied volatility, not this single call's IV.
+Yahoo quotes may be delayed or stale; inspect timestamps and wide spreads in the CSV.
+Model limitation: SPY options are American and SPY pays dividends; this assignment's
+European, zero-dividend model gives approximate IVs. Bounds failures are recorded, not forced.
+A U-shaped curve is a volatility smile; a downward-sloping equity curve is a volatility skew
+or smirk. Inspect the actual plot to identify today's shape: sparse or stale quotes can distort it.
+Data-based description (linear slopes within 20% of spot): The near-spot curve is consistent with a volatility smile (down then up).
+Different IVs across strikes contradict the constant-volatility Black-Scholes model.
+Equity downside skew reflects expensive downside protection and heavier left-tail risk
+than that model implies. Black-Scholes assumes normal log returns (lognormal prices),
+not normally distributed stock prices; the curve describes risk-neutral pricing, not
+a direct estimate of the real-world return distribution.
+
+Q6. REALIZED VERSUS IMPLIED VOLATILITY
+Realized volatility (30 log returns, sample SD x sqrt(252)): 10.38%
+ATM implied volatility (nearest positive-bid strike): 14.67%
+Realized-return window: 2026-09-14 through 2026-10-23.
+This compares backward-looking 30-trading-day RV with forward-looking roughly 30-calendar-day IV.
+
+Q7. THE VOLATILITY RISK PREMIUM
+For SPY in this download, ATM IV (14.67%) is higher than past-30-return realized volatility (10.38%). An option seller may demand a premium for insuring uncertain future volatility, jumps, and crash losses, especially when losses arrive during market stress and hedging becomes costly. Historical realized volatility is not future realized volatility, so this gap is neither a guaranteed profit nor a pure measure of the risk premium. Someone repeatedly selling options can collect small premiums in quiet weeks, but a large adverse move can wipe out months or years of income. A short straddle loses on large moves in either direction; an uncovered short call has unlimited upside loss, while a short put has substantial downside loss. Volatility spikes and margin calls may force liquidation before prices recover, and leverage can bankrupt the seller. Delta hedging removes some directional exposure but leaves short-gamma and jump risk; it does not make the weekly premium safe income.
