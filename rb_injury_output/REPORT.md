@@ -1,0 +1,87 @@
+# Running Back Injuries: Does Workload Predict Them?
+
+**Data:** nflreadpy (nflverse): play-by-play, injury reports, weekly rosters, snap counts, Next Gen Stats, PFR advanced stats, contracts, combine.
+**Scope:** NFL regular seasons 2013–2025 (2016–2024 in the first rounds). Unit = one RB game (3+ carries) or one RB season (50+ carries).
+**Method:** XGBoost and logistic regression, always scored on seasons the model did not train on (holdout or walk-forward), plus correlation scans corrected for multiple testing.
+
+## Bottom line
+
+1. **Workload is a weak predictor of RB injuries.** The best models reach an AUC of about 0.58–0.63 for "any new injury next week" (0.50 = coin flip). That's a real but modest edge.
+2. **Injury history is the most reliable signal.** It beats carries, yards, distance run, and hits taken.
+3. **No workload threshold makes injuries more likely.** Risk rises as a back goes from backup to regular, then flattens or falls for the heaviest workloads.
+4. **Nothing in public data predicts serious injuries** (3+ games missed, IR, or season over). Those models score about 0.50–0.53 AUC.
+5. **Workload adds little on top of injury history.** It works at most as an amplifier: a previously injured back on a heavy recent load is the highest-risk group, about 1.5× the lowest.
+
+## What we tested, and what happened
+
+| # | Question | Script | Result |
+|---|---|---|---|
+| 1 | Do carries and hits in a game predict next-week injury? | `rb_injury.py` | Single-game carries and hits show **no effect** (AUC 0.50). Contact built up over several games shows a little. |
+| 2 | Wider scan: surface, weather, snaps, game script, injury history | `rb_injury_corr.py` | Injury history and accumulated hits are significant. Turf, weather, short weeks and running style are not. Model AUC ≈ 0.63. |
+| 3 | Injury severity index (Minor / Moderate / Major, 0–10 time lost) | `rb_injury_severity.py` | Major injuries ≈ 6–7% of games. Knee (41% Major) and foot (38%) are the worst injuries. Workload does **not** predict severity. |
+| 4 | Running distance (NGS tracking) and thresholds | `rb_injury_distance.py` | **No breakpoint where risk accelerates.** Risk plateaus after about 13 carries or 75 yards into a season. NGS distance adds nothing. |
+| 5 | New variables: tacklers, opponent, schedule, team history, contract | `rb_injury_newvars.py` | 27 variables, none significant after correction. Combined, they add ≈ 0 AUC. Weak leads: team pace, team RB injury history, Denver altitude. |
+| 6 | Sensitivity grid: 857 definitions, found on 2013–20, checked on 2021–25 | `rb_injury_sensitivity.py` | Replicated: **prior contact injuries → contact injury within 4 wks** and **prior soft-tissue → soft-tissue**. The workload correlations that replicate reflect playing time, not fatigue. The acute:chronic workload ratio (ACWR, a sports-science spike metric) fails. |
+| 7 | Season → next season, published theories | `rb_injury_seasons.py` | Last season's games missed to injury predict next season's (OR 1.29). Receptions and playoff carries add risk. Carries do not. |
+| 8 | Findings + yardage/carries combined | `rb_injury_combined.py` | Adding yardage changes AUC by −0.01 to +0.03, every CI includes 0. History × workload interaction points the expected way but isn't significant. |
+
+## Key numbers
+
+**Injury history (game level).** Rate of a new injury listing the next week:
+
+| Weeks already on the report this season | 0 | 1 | 2–3 |
+|---|---|---|---|
+| Injury rate next week | 6.8% | 10.0% | 12.2% |
+
+**Recent workload × injury history.** Injury within the next 4 weeks:
+
+| Yards over previous 3 games | Low | Mid | High |
+|---|---|---|---|
+| No prior injury listings | 18.8% | 16.6% | 21.8% |
+| Prior injury listings | 21.8% | 25.3% | **28.9%** |
+
+**Season to next season.** Share who missed 1+ games to injury the next season:
+
+| Carries this season | 50–149 | 150–249 | 250–299 | 300+ |
+|---|---|---|---|---|
+| Missed 1+ games next season | 44.9% | 53.5% | 48.5% | 30.4% |
+
+## Published theories checked
+
+| Theory | Verdict |
+|---|---|
+| **"Curse of 370"** (Football Outsiders): 370+ carries leads to injury or decline the next year | Untestable. Only 2 such seasons since 2013. All 6 seasons of 330+ carries were followed by a drop in yards per carry, which is consistent with regression to the mean. |
+| **Heavy workload is protective** (*Orthopaedic J. Sports Med.*) | Consistent: 300+ carry backs missed time 30% of the time vs 54% for 150–249 (p = 0.048). Probably survivor bias, since only durable backs get 300 carries. |
+| **Same-body-part re-injury** (Fulton et al.) | Supported in direction: calf 4.9× (p = 0.03); knee 1.5×, hamstring 1.8×, foot 2.3× (not significant). |
+| **Age cliff at 29** | Not supported. Missing 5+ games barely rises with age (16% → 18%) once survivors are accounted for. |
+| **Yards after contact raises injury risk** (Keefer & Kniesner) | Not supported, either by season or by game (ρ ≈ 0.01). |
+| **ACWR spike > 1.5** | Not supported for RBs. The ratio runs backwards because an in-game injury shortens that game's workload. |
+
+## Pitfalls we found and corrected (worth knowing for any follow-up)
+
+- **Bye weeks:** there is no injury report the week a team is on bye, so the label was 0 by construction. These games are now excluded (fixed from `rb_injury_corr.py` on; the original `rb_injury.py` still has this issue).
+- **In-game injury leakage:** a back hurt during a game stops carrying, so low same-game or 4th-quarter volume reflects an injury that has *already happened*. Pre-game models drop these variables.
+- **End-of-season censoring:** a late-season injury can't produce many missed games. The severity analysis requires 4+ games left in the season.
+- **IR moves without an injury report listing** (about 40% of Major injuries) were missing from the early label. They are now included.
+- **Survivor bias:** heavily used backs and older backs are the durable ones. This flattens or reverses most "more work = more injury" curves.
+- **Multiple testing:** hundreds of comparisons were run. Results are Benjamini–Hochberg corrected, and the sensitivity grid uses a discovery/confirmation split.
+
+## Limitations
+
+- **Injury reports are noisy and strategic.** "Questionable" designations in particular can be gamesmanship.
+- **Contact is incomplete.** "Hits" counts only tacklers credited in the play-by-play. Pass-blocking contact is invisible.
+- **NGS distance covers only games with 10+ carries.** Real player-tracking data (Big Data Bowl) is not in nflreadpy.
+- **Season-level samples are small:** 773 RB-seasons, only 23 with 300+ carries.
+
+## Suggested next steps
+
+1. Player-tracking data (speed, acceleration, collision intensity) from the Big Data Bowl.
+2. Pass-blocking snaps (PFF) as a hidden contact load.
+3. Finer injury history: same leg, ACL vs sprain, offseason surgery.
+4. FTN charting (2022+) for play-level contact detail.
+
+## Reproducing
+
+Run in this order (each step caches a parquet the next ones use):
+`rb_injury_corr.py` → `rb_injury_severity.py` → `rb_injury_distance.py`, `rb_injury_newvars.py`, `rb_injury_sensitivity.py`, `rb_injury_seasons.py` → `rb_injury_combined.py`.
+Full outputs: the `*.txt` and `*.png` files in `rb_injury_output/`.
