@@ -1,0 +1,66 @@
+{
+ "workload": [
+  "carries",
+  "targets",
+  "receptions",
+  "touches",
+  "q4_carries",
+  "goal_line_carries",
+  "off_snaps",
+  "snap_pct",
+  "st_snaps",
+  "touches_per_snap",
+  "carries_spike"
+ ],
+ "contact": [
+  "hits",
+  "rush_hits",
+  "rec_hits",
+  "hits_per_touch",
+  "gang_tackles",
+  "stuffs",
+  "inside_share",
+  "guard_share",
+  "hits_l3",
+  "season_hits",
+  "fumbles"
+ ],
+ "efficiency/style": [
+  "ypc",
+  "long_runs",
+  "shotgun_share",
+  "air_yards_targets"
+ ],
+ "game context": [
+  "turf",
+  "dome",
+  "temp",
+  "wind",
+  "home",
+  "div_game",
+  "avg_score_diff",
+  "leading_share",
+  "days_since_last",
+  "days_to_next",
+  "short_week_next",
+  "week"
+ ],
+ "player": [
+  "age",
+  "weight",
+  "height",
+  "bmi",
+  "draft_round",
+  "years_exp",
+  "career_carries",
+  "career_hits"
+ ],
+ "in-game exit": [
+  "q4_share"
+ ],
+ "injury history": [
+  "inj_weeks_this_season",
+  "prev_season_inj_weeks",
+  "games_since_inj"
+ ]
+}

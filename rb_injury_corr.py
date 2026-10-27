@@ -5,6 +5,7 @@ Same unit and label as rb_injury.py (RB-game, new Out/Doubtful/Questionable next
 For each feature: Spearman rho, point-biserial p-value (Benjamini-Hochberg corrected),
 and single-feature AUC on the 2023-24 holdout. Then XGBoost on feature groups.
 """
+import json
 import os
 
 import matplotlib.pyplot as plt
@@ -157,6 +158,9 @@ GROUPS = {
 }
 FEATURES = [f for g in GROUPS.values() for f in g]
 group_of = {f: g for g, fs in GROUPS.items() for f in fs}
+# cache for rb_injury_severity.py
+df.write_parquet(f"{OUT}/rb_games.parquet")
+json.dump(GROUPS, open(f"{OUT}/feature_groups.json", "w"), indent=1)
 
 train = df.filter(~pl.col("season").is_in(TEST_SEASONS))
 test = df.filter(pl.col("season").is_in(TEST_SEASONS))
