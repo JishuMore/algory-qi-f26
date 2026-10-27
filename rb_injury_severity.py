@@ -33,8 +33,8 @@ import xgboost as xgb
 from scipy.stats import spearmanr
 from sklearn.metrics import roc_auc_score
 
-SEASONS = list(range(2016, 2025))
-TEST_SEASONS = [2023, 2024]
+SEASONS = list(range(2013, 2026))
+TEST_SEASONS = [2024, 2025]
 OUT = "rb_injury_output"
 CATS = ["None", "Minor", "Moderate", "Major"]
 
@@ -106,6 +106,7 @@ sev = (base.join(missed, on=["player_id", "season", "week"], how="left")
 # (and missing the final game would look "season-ending")
 df = df.join(sev, on=["player_id", "season", "week"], how="inner").filter(pl.col("remaining") >= 4).with_columns(
     major=(pl.col("severity_cat") == 3).cast(pl.Int32))
+df.write_parquet(f"{OUT}/rb_games_severity.parquet")  # cache for rb_injury_distance.py
 
 ALL = [f for g in GROUPS.values() for f in g]
 PREGAME = [f for f in ALL if f not in GROUPS["in-game exit"] and f != "q4_carries"]  # drop in-game-injury tells
@@ -219,7 +220,7 @@ lines = [
     "rho_major = vs Major injury flag; rho_if_injured = vs severity among injured RBs only. q = BH-adjusted.",
     fmt(scan.select("feature", "rho_score", "q_score", "rho_major", "q_major", "rho_if_injured", "q_if_injured")),
     "",
-    "Holdout 2023-24 model results:",
+    "Holdout 2024-25 model results:",
     f"  {'metric':44s} {'pre-game':>9s} {'all feats':>9s} {'wkld+contact':>12s}",
     *[f"  {k:44s} {res_pre[k]:9.3f} {res_all[k]:9.3f} {res_wc[k]:12.3f}" for k in res_pre],
     "  (pre-game drops q4_share / q4_carries, which mostly flag an injury that already happened in-game)",

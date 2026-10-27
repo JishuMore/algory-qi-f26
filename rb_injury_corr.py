@@ -3,7 +3,7 @@ injury designation the following week?
 
 Same unit and label as rb_injury.py (RB-game, new Out/Doubtful/Questionable next week).
 For each feature: Spearman rho, point-biserial p-value (Benjamini-Hochberg corrected),
-and single-feature AUC on the 2023-24 holdout. Then XGBoost on feature groups.
+and single-feature AUC on the 2024-25 holdout. Then XGBoost on feature groups.
 """
 import json
 import os
@@ -17,8 +17,8 @@ from scipy.stats import spearmanr, pointbiserialr
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 
-SEASONS = list(range(2016, 2025))
-TEST_SEASONS = [2023, 2024]
+SEASONS = list(range(2013, 2026))
+TEST_SEASONS = [2024, 2025]
 OUT = "rb_injury_output"
 os.makedirs(OUT, exist_ok=True)
 
@@ -213,7 +213,7 @@ pl.Config.set_tbl_rows(80); pl.Config.set_tbl_cols(10); pl.Config.set_fmt_float(
 lines = [
     f"RB-games: {df.height} (train {train.height}, test {test.height}); base rate {y_all.mean():.3%}",
     "",
-    "Univariate scan (sorted by p; q_bh = Benjamini-Hochberg false-discovery-adjusted; test_auc = 2023-24 holdout):",
+    "Univariate scan (sorted by p; q_bh = Benjamini-Hochberg false-discovery-adjusted; test_auc = 2024-25 holdout):",
     str(scan.with_columns(pl.col("spearman", "test_auc", "coverage").round(3),
                           pl.col("p", "q_bh").round(4))),
     "",
@@ -244,5 +244,5 @@ ax[0].axvline(0, color="k", lw=0.8)
 ax[0].set_title("Spearman correlation with new injury next week\n(red = significant after FDR correction, q<0.05)")
 names, aucs = zip(*grp_rows)
 ax[1].barh(names[::-1], aucs[::-1], color="#4C72B0"); ax[1].axvline(0.5, color="k", ls="--", lw=0.8)
-ax[1].set_xlim(0.45, max(aucs) + 0.03); ax[1].set_title("XGBoost holdout AUC (2023-24) by feature group")
+ax[1].set_xlim(0.45, max(aucs) + 0.03); ax[1].set_title("XGBoost holdout AUC (2024-25) by feature group")
 plt.tight_layout(); plt.savefig(f"{OUT}/correlations.png", dpi=130)

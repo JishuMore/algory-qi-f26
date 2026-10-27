@@ -1,2 +1,3 @@
 rb_injury_output/rb_games.parquet
 __pycache__/
+rb_injury_output/rb_games_severity.parquet
