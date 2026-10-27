@@ -25,6 +25,20 @@
 | 7 | Season → next season, published theories | `rb_injury_seasons.py` | Last season's games missed to injury predict next season's (OR 1.29). Receptions and playoff carries add risk. Carries do not. |
 | 8 | Findings + yardage/carries combined | `rb_injury_combined.py` | Adding yardage changes AUC by −0.01 to +0.03, every CI includes 0. History × workload interaction points the expected way but isn't significant. |
 
+| 9 | Previous injury × distance run since return → re-injury (non-linear) | `rb_injury_reinjury.py` | **No distance that triggers re-injury.** Same-part re-injury risk is highest in the **first ~500 yds after returning** (7.5% within 4 wks) and falls to ~3% by 1,500–2,500 yds. Knee (10.4%) and ankle (8.4%) are most at risk early. Returning on a heavier-than-usual load shows no effect. Distance adds ≈ 0 AUC. |
+
+## Re-injury and distance since return
+
+Estimated distance = NGS tracked distance where available, otherwise carries × the player's yards run per carry (median 16.3).
+
+| Distance run since returning | 0–250 | 250–500 | 500–1k | 1k–1.5k | 1.5k–2.5k | 2.5k–4k | 4k+ |
+|---|---|---|---|---|---|---|---|
+| Same-part re-injury within 4 wks | 7.5% | 7.2% | 6.4% | 4.7% | **3.1%** | 4.6% | 2.5–4.8% |
+
+- The relationship is non-linear and *decreasing*: a vulnerable window right after return that fades with distance. A spline fit with controls for time since return, age and snap share is borderline (p = 0.04). The best breakpoint, about 2,000 yds, is where the *decline* levels off, and the bootstrap range is unstable (770–4,600 yds).
+- Re-injury-free curve: about 95% of backs avoid re-injuring the same part through their first 500 yds back and about 85% through 9,000 yds. Most re-injuries happen early.
+- For backs with no injury history, risk rises with career distance up to about 3,000 yds and then drops (non-linearity p = 0.009). That's the same backup-to-regular exposure effect and survivor bias seen earlier, not wear and tear.
+
 ## Key numbers
 
 **Injury history (game level).** Rate of a new injury listing the next week:
@@ -83,5 +97,5 @@
 ## Reproducing
 
 Run in this order (each step caches a parquet the next ones use):
-`rb_injury_corr.py` → `rb_injury_severity.py` → `rb_injury_distance.py`, `rb_injury_newvars.py`, `rb_injury_sensitivity.py`, `rb_injury_seasons.py` → `rb_injury_combined.py`.
+`rb_injury_corr.py` → `rb_injury_severity.py` → `rb_injury_distance.py`, `rb_injury_newvars.py`, `rb_injury_sensitivity.py`, `rb_injury_seasons.py` → `rb_injury_combined.py`, `rb_injury_reinjury.py`.
 Full outputs: the `*.txt` and `*.png` files in `rb_injury_output/`.
