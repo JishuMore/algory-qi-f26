@@ -250,6 +250,7 @@ lines = [
     *[f"  {k:18s} n={n} rate={r:.3f}  XGB AUC={au:.3f}   age-only AUC={aa:.3f}" for k, (n, r, au, aa) in wf.items()],
     "Top drivers (mean |SHAP|, next_missed_any):", *[f"  {f:24s} {v:.4f}" for f, v in imp],
 ]
+D.write_parquet(f"{OUT}/rb_seasons.parquet")  # cache for rb_injury_combined.py
 report = "\n".join(lines)
 print(report)
 open(f"{OUT}/seasons.txt", "w").write(report)

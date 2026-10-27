@@ -180,6 +180,7 @@ for col in ["prior_season_carries", "prior_season_yards", "prior_l3_carries", "g
     lines += ["", f"Binned rates by {col}:",
               fmt(binned(df, col, "event").join(binned(df, col, "major").select(
                   "b", major_rate="rate"), on="b"))]
+df.write_parquet(f"{OUT}/rb_games_distance.parquet")  # cache for rb_injury_combined.py
 report = "\n".join(lines)
 print(report)
 open(f"{OUT}/distance.txt", "w").write(report)

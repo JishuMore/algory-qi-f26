@@ -1,3 +1,6 @@
 rb_injury_output/rb_games.parquet
 __pycache__/
 rb_injury_output/rb_games_severity.parquet
+rb_injury_output/rb_games_sensitivity.parquet
+rb_injury_output/rb_games_distance.parquet
+rb_injury_output/rb_seasons.parquet

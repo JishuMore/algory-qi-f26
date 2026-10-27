@@ -205,6 +205,7 @@ lines = [
     fmt(df.with_columns(b=pl.col("prev_playoff_games").clip(0, 3)).group_by("b").agg(
         n=pl.len(), any_1wk=pl.mean("any_1wk"), any_4wk=pl.mean("any_4wk"), major=pl.mean("major")).sort("b")),
 ]
+df.write_parquet(f"{OUT}/rb_games_sensitivity.parquet")  # cache for rb_injury_combined.py
 report = "\n".join(lines)
 print(report)
 open(f"{OUT}/sensitivity.txt", "w").write(report)
