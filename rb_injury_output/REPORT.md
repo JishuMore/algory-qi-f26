@@ -53,7 +53,6 @@ Build a **re-injury watch-list**, not a workload model: flag backs in their firs
 | 6 | Sensitivity grid: 857 definitions, found on 2013–20, checked on 2021–25 | `rb_injury_sensitivity.py` | Replicated: **prior contact injuries → contact injury within 4 wks** and **prior soft-tissue → soft-tissue**. The workload correlations that replicate reflect playing time, not fatigue. The acute:chronic workload ratio (ACWR, a sports-science spike metric) fails. |
 | 7 | Season → next season, published theories | `rb_injury_seasons.py` | Last season's games missed to injury predict next season's (OR 1.29). Receptions and playoff carries add risk. Carries do not. |
 | 8 | Findings + yardage/carries combined | `rb_injury_combined.py` | Adding yardage changes AUC by −0.01 to +0.03, every CI includes 0. History × workload interaction points the expected way but isn't significant. |
-
 | 9 | Previous injury × distance run since return → re-injury (non-linear) | `rb_injury_reinjury.py` | **No distance that triggers re-injury.** Same-part re-injury risk is highest in the **first ~500 yds after returning** (7.5% within 4 wks) and falls to ~3% by 1,500–2,500 yds. Knee (10.4%) and ankle (8.4%) are most at risk early. Returning on a heavier-than-usual load shows no effect. Distance adds ≈ 0 AUC. |
 
 ## Re-injury and distance since return
