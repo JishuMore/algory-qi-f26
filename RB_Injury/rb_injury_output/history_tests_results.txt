@@ -1,0 +1,64 @@
+RB-games: 17186   seasons 2013-2025
+Base rate, new listing next week: 6.12%   within 4 wks: 18.78%
+
+=== H1: weeks already on report this season -> new injury next week ===
+all      0: 5.6% (n=12421)  1: 7.1% (n=2046)  2-3: 7.7% (n=1933)  4+: 7.9% (n=786)
+2013-20  0: 5.5% (n=7664)  1: 7.5% (n=1165)  2-3: 6.3% (n=1114)  4+: 8.9% (n=459)
+2021-25  0: 5.8% (n=4757)  1: 6.7% (n=881)  2-3: 9.6% (n=819)  4+: 6.4% (n=327)
+logit (controls: recent touches, season FE; player-clustered SE): wks_listed OR=1.080  p=0.00084
+
+--- prior contact injury (<=4 wks ago) -> new contact injury within 4 wks ---
+prior=False: 11.7% (n=15902)  prior=True: 14.8% (n=1284)
+logit OR=1.31  p=0.026
+
+=== H2: same-part re-injury next week by scrimmage yards since return ===
+  0-250      next wk 1.7%   within 4 wks 4.2%  (n=4976)
+  250-500    next wk 0.8%   within 4 wks 2.2%  (n=1957)
+  500-1000   next wk 0.8%   within 4 wks 2.5%  (n=1858)
+  1000-1500  next wk 0.5%   within 4 wks 1.8%  (n=760)
+  1500-2500  next wk 1.0%   within 4 wks 2.7%  (n=588)
+  first 250 yds by part (same-part within 4 wks):
+    groin        6.5% (n=153)
+    ankle        6.5% (n=984)
+    knee         6.0% (n=851)
+    hamstring    4.6% (n=610)
+    foot         4.4% (n=229)
+    hip          3.6% (n=192)
+    thigh        3.3% (n=122)
+    shoulder     2.8% (n=317)
+    calf         2.7% (n=183)
+    toe          2.5% (n=159)
+    concussion   2.0% (n=353)
+    quadricep    1.1% (n=90)
+    back         0.8% (n=130)
+    rib          0.5% (n=185)
+    neck         0.0% (n=77)
+logit log(1+yds since return) OR=0.820  p=1.3e-10
+
+=== H3: history x heavy recent workload -> new injury within 4 wks ===
+heavy = avg touches last 3 games >= 15.3 (top quartile)
+  history=False heavy=False  14.6% (n=4380)
+  history=False heavy=True   17.2% (n=1184)
+  history=True  heavy=False  18.9% (n=8386)
+  history=True  heavy=True   24.9% (n=3236)
+  any_history        OR=1.32  p=0.0029
+  heavy              OR=1.25  p=0.15
+  any_history:heavy  OR=1.15  p=0.43
+
+=== XGBoost: new listing next week, train <=2020, test 2021-25 ===
+  workload only  new_next AUC 0.585 [0.557, 0.612]  PR-AUC 0.102 (base 0.064)
+  workload only  new_4w   AUC 0.622 [0.607, 0.637]  PR-AUC 0.276 (base 0.201)
+  history only   new_next AUC 0.573 [0.546, 0.596]  PR-AUC 0.077 (base 0.064)
+  history only   new_4w   AUC 0.622 [0.607, 0.635]  PR-AUC 0.271 (base 0.201)
+  all            new_next AUC 0.618 [0.590, 0.644]  PR-AUC 0.107 (base 0.064)
+  all            new_4w   AUC 0.642 [0.626, 0.657]  PR-AUC 0.288 (base 0.201)
+  mean |SHAP| (all-features, next week):
+    touches_l3           0.418
+    touches              0.287
+    career_listings      0.182
+    week                 0.150
+    yds_since_return     0.137
+    wks_listed_season    0.058
+    prior_contact_4w     0.001
+    listed_now           0.000
+  test injury rate by predicted decile: 3.5% 11.8% 3.5% 3.5% 5.7% 6.6% 6.0% 6.5% 7.7% 9.0%
