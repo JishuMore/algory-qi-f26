@@ -12,6 +12,35 @@
 4. **Nothing in public data predicts serious injuries** (3+ games missed, IR, or season over). Those models score about 0.50–0.53 AUC.
 5. **Workload adds little on top of injury history.** It works at most as an amplifier: a previously injured back on a heavy recent load is the highest-risk group, about 1.5× the lowest.
 
+## What is actually worth looking at
+
+Ranked by how well each finding holds up. "Replicated" means found in 2013–2020 and confirmed in 2021–2025, or significant when predicting seasons the model never trained on.
+
+### Worth pursuing (held up)
+
+| Signal | Evidence | Size of effect | Why it matters |
+|---|---|---|---|
+| **1. Injury history, especially to the same body part** | Replicated in both eras, at both game and season level, and after controls | Prior contact injury → contact injury within 4 wks: ρ ≈ +0.10 in both eras. 2–3 weeks on the report already this season: 12.2% vs 6.8% injury next week. Last season's games missed: OR 1.29 per +2.3 games. | The single most consistent predictor across 9 rounds. |
+| **2. The window right after return** | Clear, monotonic pattern in 5,171 games; spline p = 0.04 | Same-part re-injury 7.5% in the first 250 yds back vs 3.1% at 1,500–2,500 yds. Knee 10.4% and ankle 8.4% in the first 500 yds. | Actionable: it says *when* a back is most vulnerable (the first 1–3 games back), which is more useful than *how much* he runs. |
+| **3. History × recent workload (risk tiers)** | Consistent direction; interaction not significant | Injury history + top-third recent yards: 28.9% injury within 4 wks vs 16.6–18.8% for clean backs. | The most practical screening rule found, though workload acts as an amplifier, not a cause. |
+
+### Possibly worth a second look (suggestive, not proven)
+
+- **Receptions and last season's playoff carries → next season's injuries** (OR 1.26 and 1.24, CIs exclude 1). Each is a single test and hasn't been replicated in a second era.
+- **Team pace, team RB injury history, Denver altitude** (q ≈ 0.07, small samples). A team-level (medical / strength-staff) effect would be interesting if it held up with more data.
+- **Calf / hamstring / foot recurrence season to season** (risk ratios 1.8–4.9×). Only calf is significant, and the samples are small.
+
+### Not worth more time (tested repeatedly, nothing there)
+
+- Carries, yards, hits or NGS distance **in a single game**, season to date, or over a career, used to predict injury.
+- **A distance or carry threshold** for injury or re-injury. None exists; risk plateaus or falls.
+- **The acute:chronic workload ratio (ACWR)**, the "curse of 370", the age-29 cliff, yards after contact, broken tackles, tackler size, turf, weather, travel, short weeks, contract year.
+- **Predicting serious (Major) injuries** from any public variable: AUC about 0.50–0.53 in every round.
+
+### If you take one thing forward
+
+Build a **re-injury watch-list**, not a workload model: flag backs in their first ~500 yds (1–3 games) back from a knee or ankle injury, and backs with 2+ prior listings this season who are on a heavy recent load. These are the only groups whose injury rates are clearly above baseline (roughly 1.5–2× the base rate). Better data could make this predictive: tracking-based load, pass-blocking reps, and injury detail such as severity grade, surgery, or which leg.
+
 ## What we tested, and what happened
 
 | # | Question | Script | Result |
