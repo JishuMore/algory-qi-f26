@@ -13,12 +13,12 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
 import backtest  # noqa: E402
 import trader as tr  # noqa: E402
-from fit import collect, design, ridge  # noqa: E402
+from fit import collect, design, event_cols, ridge  # noqa: E402
 
 _ROWS = {}
 
 
-def coefs_from(days):
+def coefs_from(days, noev=False):
     for d in days:
         if d not in _ROWS:
             _ROWS[d] = collect(d)
@@ -27,24 +27,30 @@ def coefs_from(days):
         out[s] = {}
         for h in tr.HORIZONS:
             Xs, ys = zip(*(design(_ROWS[d], s, h) for d in days))
-            out[s][h] = list(ridge(np.vstack(Xs), np.concatenate(ys)))
+            X = np.vstack(Xs)
+            if noev:
+                X[:, event_cols(s)] = 0.0
+            out[s][h] = list(ridge(X, np.concatenate(ys)))
     return out
 
 
-def run(params, match='all'):
+def run(params, match='all', feed='normal'):
     """params: dict of Trader attribute overrides. Returns {day: pnl dict} trading OOS."""
     res = {}
     for test, train in ((-1, -2), (-2, -1)):
         tr.COEF.clear()
         tr.COEF.update(coefs_from([train]))
+        tr.COEF_NOEV.clear()
+        tr.COEF_NOEV.update(coefs_from([train], noev=True))
 
         class T(tr.Trader):
             def __init__(self):
                 super().__init__()
+                self.log = False
                 for k, v in params.items():
                     setattr(self, k, dict(v) if isinstance(v, dict) else v)
 
-        res[test] = backtest.run_day(T, test, match)[0]
+        res[test] = backtest.run_day(T, test, match, feed=feed)[0]
     return res
 
 

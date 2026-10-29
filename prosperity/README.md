@@ -28,10 +28,30 @@ Out-of-sample forecast R² (h=10): AMBER 0.433 vs 0.428, JADE 0.605 vs 0.570.
 
 Fill diagnostics (`research/markout.py`): about 95% of volume is taken, at about 3.4/lot spread on AMBER. Those trades earn it back by +30 ticks. More aggressive taking (longer horizons, multi-horizon "best rate" entry) and longer-horizon quoting were both tested and lost money or did nothing. Passive capacity is capped by bot flow.
 
+## Live day 1 post-mortem (`data/my_trades_day_1.csv`)
+
+Live: AMBER ≈ −7k, JADE ≈ +49k (marked at last fill), vs ~110k / ~85k per backtest day. The log was empty because the trader printed nothing, and the file only has our own fills, so the cause is inferred by replaying days -2/-1 under possible engine differences (`backtest.py --feed ... --fresh`):
+
+| scenario (old trader) | AMBER/day | JADE/day |
+|---|---|---|
+| normal | +110k | +85k |
+| **no informed events registered at all** | **−10k … −17k** | **+44k … +51k** ← matches live |
+| no market trades (own fills still seen) | +30k … +52k | +54k |
+| trades repeated until replaced (`sticky`) | −15k … −18k | −4k … +2k |
+| new Trader instance every tick | −5k … −7k | +6k |
+
+So live, the 7-lot informed signal never reached the model; JADE survived on the price-only AMBER→JADE lead. Fixes in `trader.py`:
+
+* events placed by each trade's own `timestamp`, re-sent trades de-duplicated, side judged vs the mid at the trade's time, `qty >= 7`;
+* fallback `COEF_NOEV` (event-free fit) if no informed trade is seen for 300 live ticks (expected gap ~17): zero-event scenario becomes AMBER +12…18k, JADE +62k;
+* one compact log line per tick (`ts|mode|SYM pos mid m[qty@px/dt] o[n] e[(age,sign)]`) plus `NEW_NAME` when trades carry counterparty names.
+
+New trader: normal / sticky / dup feeds 392k (identical), late 386k, no market trades 193k, zero events 155k.
+
 ## Reproduce
 
 ```bash
-python backtest.py trader baseline_trader          # local backtest (--match worse for stricter fills)
+python backtest.py trader baseline_trader          # local backtest (--match worse, --feed none|dup|late|sticky, --fresh)
 python research/fit.py --write                     # refit + embed coefficients (add new days in fit.main)
 python research/evaluate.py                        # cross-day honest evaluation
 python research/grid_product.py                    # execution-parameter grid

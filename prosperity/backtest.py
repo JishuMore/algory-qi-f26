@@ -47,7 +47,9 @@ def load(day):
     return books, trades
 
 
-def run_day(trader_cls, day, match='all', verbose=False):
+def run_day(trader_cls, day, match='all', verbose=False, feed='normal', fresh=False):
+    """feed: 'normal' | 'none' (no market trades) | 'dup' (trades re-sent next tick too) | 'late' (one extra tick delay)
+    | 'sticky' (last trades repeated until new ones print)."""
     books, trades = load(day)
     trader = trader_cls()
     pos = {s: 0 for s in LIMIT}
@@ -55,16 +57,29 @@ def run_day(trader_cls, day, match='all', verbose=False):
     last_mid = {}
     own_prev = {s: [] for s in LIMIT}
     mkt_prev = {s: [] for s in LIMIT}
+    mkt_prev2 = {s: [] for s in LIMIT}
+    sticky = {s: [] for s in LIMIT}
     trader_data = ''
     n_fills = defaultdict(int)
     vol = defaultdict(int)
     curve = []
+    errors = 0
     for ts in sorted(books):
         depths = books[ts]
+        shown = {'normal': mkt_prev, 'none': {s: [] for s in LIMIT}, 'late': mkt_prev2,
+                 'dup': {s: mkt_prev2[s] + mkt_prev[s] for s in LIMIT}, 'sticky': sticky}[feed]
         state = TradingState(trader_data, ts, {}, {s: _copy(depths[s]) for s in depths},
-                             {s: list(own_prev[s]) for s in LIMIT}, {s: list(mkt_prev[s]) for s in LIMIT},
+                             {s: list(own_prev[s]) for s in LIMIT}, {s: list(shown[s]) for s in LIMIT},
                              dict(pos), Observation())
-        out = trader.run(state)
+        if fresh:                      # engine that re-creates the Trader every tick (state only via traderData)
+            trader = trader_cls()
+        try:
+            out = trader.run(state)
+        except Exception as e:         # engines skip a tick whose run() raises
+            errors += 1
+            if errors == 1:
+                print(f'  [run() raised at {day}/{ts}: {e!r}]')
+            out = ({}, 0, trader_data)
         orders, trader_data = (out[0], out[2]) if isinstance(out, tuple) else (out, '')
         own_now = {s: [] for s in LIMIT}
         tick_trades = {s: [list(x) for x in trades[ts].get(s, [])] for s in LIMIT}
@@ -118,7 +133,10 @@ def run_day(trader_cls, day, match='all', verbose=False):
                 vol[s] += t_.quantity
         for s in LIMIT:
             own_prev[s] = own_now[s]
+            mkt_prev2[s] = mkt_prev[s]
             mkt_prev[s] = [Trade(s, p, q, '', '', ts) for p, q in tick_trades[s] if q > 0]
+            if mkt_prev[s]:
+                sticky[s] = mkt_prev[s]
             d = books[ts][s]
             if d.buy_orders and d.sell_orders:
                 last_mid[s] = (max(d.buy_orders) + min(d.sell_orders)) / 2
@@ -139,12 +157,14 @@ def main():
     ap.add_argument('modules', nargs='*', default=['trader'])
     ap.add_argument('--match', default='all', choices=['all', 'worse'])
     ap.add_argument('--days', nargs='*', type=int, default=[-2, -1])
+    ap.add_argument('--fresh', action='store_true', help='new Trader instance every tick')
+    ap.add_argument('--feed', default='normal', choices=['normal', 'none', 'dup', 'late', 'sticky'])
     a = ap.parse_args()
     for m in a.modules:
         cls = importlib.import_module(m).Trader
         tot = 0
         for day in a.days:
-            pnl, vol, curve = run_day(cls, day, a.match)
+            pnl, vol, curve = run_day(cls, day, a.match, feed=a.feed, fresh=a.fresh)
             s = sum(pnl.values()); tot += s
             print(f'{m:>18s} day {day:>2d} [{a.match}]  ' + '  '.join(f'{k} {v:9.0f} (vol {vol.get(k, 0)})' for k, v in pnl.items()) + f'  total {s:9.0f}')
         print(f'{m:>18s} TOTAL {tot:.0f}')

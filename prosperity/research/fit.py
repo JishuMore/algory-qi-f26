@@ -23,17 +23,15 @@ class Logger(tr.Trader):
         super().__init__()
         self.rows = []      # (mids, {sym: {h: feats}}, base_feats)
         self.base = bl.Trader()
+        self.log = False
+
+    def orders_for(self, *args):
+        return []
 
     def run(self, state):
-        mids, events = {}, {}
-        for s in tr.LIMIT:
-            d = state.order_depths.get(s)
-            events[s] = tr.informed_event(state.market_trades.get(s, []), state.own_trades.get(s, []),
-                                          self.prev_mid.get(s))
-            mids[s] = (max(d.buy_orders) + min(d.sell_orders)) / 2.0 if d.buy_orders and d.sell_orders else None
-            if mids[s] is not None:
-                self.prev_mid[s] = mids[s]
-        self.model.step(mids, events)
+        super().run(state)          # identical model bookkeeping to the live trader, no orders
+        mids = {s: (max(d.buy_orders) + min(d.sell_orders)) / 2.0 if d.buy_orders and d.sell_orders else None
+                for s, d in ((s, state.order_depths[s]) for s in tr.LIMIT)}
         feats = {s: ({h: self.model.features(s, h) for h in tr.HORIZONS} if mids[s] is not None and self.model.ready(s) else None)
                  for s in tr.LIMIT}
         # baseline feature engine (same bookkeeping as baseline_trader.run, no orders)
@@ -115,18 +113,31 @@ def main():
             coef[s][h] = [round(float(v), 4) for v in w]
             print(f'   h={h:>2d}  new {res[0]:.3f}   baseline-features {res[1]:.3f}')
     if '--write' in sys.argv:
+        noev = {}
+        for s in tr.LIMIT:
+            noev[s] = {}
+            for h in tr.HORIZONS:
+                Xs, ys = zip(*(design(days[d], s, h) for d in days))
+                X = np.vstack(Xs)
+                X[:, event_cols(s)] = 0.0
+                noev[s][h] = [round(float(v), 4) for v in ridge(X, np.concatenate(ys))]
         path = os.path.join(os.path.dirname(HERE), 'trader.py')
         src = open(path).read()
-        start = src.index('COEF = {')
-        end = src.index('\n', start)
-        body = 'COEF = {\n' + ''.join(
-            f"    '{s}': {{\n" + ''.join(f'        {h}: {coef[s][h]},\n' for h in tr.HORIZONS) + '    },\n'
-            for s in tr.LIMIT) + '}'
-        if src[start:end].strip() != 'COEF = {}':     # replace a previously written multi-line block
-            end = src.index('\n}\n', start) + 2
-        open(path, 'w').write(src[:start] + body + src[end:])
-        print('wrote COEF into trader.py')
+        for name, table in (('COEF_NOEV', noev), ('COEF', coef)):
+            start = src.index(f'\n{name} = {{') + 1
+            end = src.index('\n', start) if src[start:src.index('\n', start)].strip().endswith('{}') \
+                else src.index('\n}\n', start) + 2
+            body = f'{name} = {{\n' + ''.join(
+                f"    '{s}': {{\n" + ''.join(f'        {h}: {table[s][h]},\n' for h in tr.HORIZONS) + '    },\n'
+                for s in tr.LIMIT) + '}'
+            src = src[:start] + body + src[end:]
+        open(path, 'w').write(src)
+        print('wrote COEF and COEF_NOEV into trader.py')
 
+
+def event_cols(s):
+    names = tr.FEATURE_NAMES[s]
+    return [i for i, n in enumerate(names) if n.startswith('ev')]
 
 if __name__ == '__main__':
     main()
