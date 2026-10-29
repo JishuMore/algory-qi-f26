@@ -57,10 +57,19 @@ Fixes:
 * **taker-only** by default (`Trader.passive`). Our inside quote used to absorb the bot's 7 lots, so the signal never printed as a market trade. Taking only: 383k OOS, identical under both fill rules and every feed mode, so it no longer depends on how live bots fill resting quotes;
 * the log now also prints own fills (`o[+qty@px/dt]`).
 
+## Other teams in the market
+
+Other teams share the book and the trade tape. Checked so far:
+* **Mid distortion:** the live tick-to-tick mid change (std 2.71 / 2.06, lag-1 autocorr −0.29 / −0.23) is inside the normal range for 200-tick windows of the historical data, so other teams' quotes aren't moving our mid in the logged stretch.
+* **Competition for the informed signal:** `backtest.py --compete N` removes N book levels on the event side the tick after each 7-lot print. Cost: −1.5% (383k → 378k). The pulse lasts 30 ticks and the bots re-quote around fair value every tick, so arriving one tick late gives up only ~0.35/lot.
+* **Other teams' 7-lot trades:** a 7-lot print within 20 ticks of the last accepted one is ignored (the bot's minimum gap is exactly 20). In the live log, the AMBER 7-lot at 998900 came 16 ticks after the previous one.
+* **Front-running:** no early drift. Price *falls* into the bot's buy (+2…3 above 10–40 ticks earlier) and then rises ~13. A buy is 10× likelier right after a dip below fair (5.8% vs 0.6% per tick), but too rarely to trade on alone. Pulse size is only weakly predictable (R² 0.1, mostly chained events).
+* The log now includes both book levels with sizes, so other teams' orders are visible.
+
 ## Reproduce
 
 ```bash
-python backtest.py trader baseline_trader          # local backtest (--match worse, --feed none|dup|late|sticky, --fresh)
+python backtest.py trader baseline_trader          # local backtest (--match worse, --feed none|dup|late|sticky, --fresh, --compete 1)
 python research/fit.py --write                     # refit + embed coefficients (add new days in fit.main)
 python research/evaluate.py                        # cross-day honest evaluation
 python research/grid_product.py                    # execution-parameter grid

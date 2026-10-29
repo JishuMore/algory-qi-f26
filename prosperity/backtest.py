@@ -47,8 +47,10 @@ def load(day):
     return books, trades
 
 
-def run_day(trader_cls, day, match='all', verbose=False, feed='normal', fresh=False):
-    """feed: 'normal' | 'none' (no market trades) | 'dup' (trades re-sent next tick too) | 'late' (one extra tick delay)
+def run_day(trader_cls, day, match='all', verbose=False, feed='normal', fresh=False, compete=0):
+    """compete: emulate other teams reacting to a 7-lot print one tick later by removing the first
+    `compete` book levels on the side they would take (asks after an informed buy).
+    feed: 'normal' | 'none' (no market trades) | 'dup' (trades re-sent next tick too) | 'late' (one extra tick delay)
     | 'sticky' (last trades repeated until new ones print)."""
     books, trades = load(day)
     trader = trader_cls()
@@ -66,6 +68,15 @@ def run_day(trader_cls, day, match='all', verbose=False, feed='normal', fresh=Fa
     errors = 0
     for ts in sorted(books):
         depths = books[ts]
+        if compete:
+            depths = {s: _copy(depths[s]) for s in depths}
+            for s in LIMIT:
+                ref = last_mid.get(s)
+                for tr_ in mkt_prev[s]:
+                    if tr_.quantity == 7 and ref is not None:
+                        side = depths[s].sell_orders if tr_.price >= ref else depths[s].buy_orders
+                        for px in sorted(side, reverse=(side is depths[s].buy_orders))[:compete]:
+                            del side[px]
         shown = {'normal': mkt_prev, 'none': {s: [] for s in LIMIT}, 'late': mkt_prev2,
                  'dup': {s: mkt_prev2[s] + mkt_prev[s] for s in LIMIT}, 'sticky': sticky}[feed]
         state = TradingState(trader_data, ts, {}, {s: _copy(depths[s]) for s in depths},
@@ -138,7 +149,7 @@ def run_day(trader_cls, day, match='all', verbose=False, feed='normal', fresh=Fa
             if mkt_prev[s]:
                 sticky[s] = mkt_prev[s]
             d = books[ts][s]
-            if d.buy_orders and d.sell_orders:
+            if d.buy_orders and d.sell_orders:  # mid from the untouched bot book
                 last_mid[s] = (max(d.buy_orders) + min(d.sell_orders)) / 2
         curve.append(sum(cash[s] + pos[s] * last_mid.get(s, 0) for s in LIMIT))
     pnl = {s: cash[s] + pos[s] * last_mid[s] for s in LIMIT}
@@ -157,6 +168,7 @@ def main():
     ap.add_argument('modules', nargs='*', default=['trader'])
     ap.add_argument('--match', default='all', choices=['all', 'worse'])
     ap.add_argument('--days', nargs='*', type=int, default=[-2, -1])
+    ap.add_argument('--compete', type=int, default=0, help='remove N levels on the event side the tick after a 7-lot print')
     ap.add_argument('--fresh', action='store_true', help='new Trader instance every tick')
     ap.add_argument('--feed', default='normal', choices=['normal', 'none', 'dup', 'late', 'sticky'])
     a = ap.parse_args()
@@ -164,7 +176,7 @@ def main():
         cls = importlib.import_module(m).Trader
         tot = 0
         for day in a.days:
-            pnl, vol, curve = run_day(cls, day, a.match, feed=a.feed, fresh=a.fresh)
+            pnl, vol, curve = run_day(cls, day, a.match, feed=a.feed, fresh=a.fresh, compete=a.compete)
             s = sum(pnl.values()); tot += s
             print(f'{m:>18s} day {day:>2d} [{a.match}]  ' + '  '.join(f'{k} {v:9.0f} (vol {vol.get(k, 0)})' for k, v in pnl.items()) + f'  total {s:9.0f}')
         print(f'{m:>18s} TOTAL {tot:.0f}')

@@ -34,7 +34,7 @@ def coefs_from(days, noev=False):
     return out
 
 
-def run(params, match='all', feed='normal'):
+def run(params, match='all', feed='normal', compete=0):
     """params: dict of Trader attribute overrides. Returns {day: pnl dict} trading OOS."""
     res = {}
     for test, train in ((-1, -2), (-2, -1)):
@@ -50,7 +50,7 @@ def run(params, match='all', feed='normal'):
                 for k, v in params.items():
                     setattr(self, k, dict(v) if isinstance(v, dict) else v)
 
-        res[test] = backtest.run_day(T, test, match, feed=feed)[0]
+        res[test] = backtest.run_day(T, test, match, feed=feed, compete=compete)[0]
     return res
 
 

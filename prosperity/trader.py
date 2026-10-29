@@ -23,6 +23,7 @@ MU = {'AMBER': 1000.0, 'JADE': 500.0}
 JADE_LAG = 25
 JADE_BETA = 0.5
 INFORMED_QTY = 7
+COOLDOWN = 20                   # the informed bot never trades a product twice within 20 ticks (days -2/-1)
 AGE = [(1, 1), (2, 3), (4, 6), (7, 10), (11, 15), (16, 19), (20, 20), (21, 25), (26, 30), (31, 40), (41, 55)]
 HIST = 80
 SMOOTH = 5                      # half-window for the centred average of past AMBER mids
@@ -179,14 +180,16 @@ class Model:
         return sum(x * w for x, w in zip(self.features(s, h), coef[s][h]))
 
 
-def informed_events(market_trades, mid_at, fallback_ref, now, seen):
+def informed_events(market_trades, mid_at, fallback_ref, now, seen, last_ts):
     """Informed-bot trades not seen before, as [(age_in_ticks, +1 buy / -1 sell)].
 
     Only market trades of exactly INFORMED_QTY lots count. Our own fills are NOT used: live,
     other bots hit our resting quotes in all sizes (8-15 lots is common), so own fills carry no
     information about the informed bot (day-2 live log: 36 of 45 own-fill "events" were false).
     Each trade is placed by its own timestamp, re-sent trades are de-duplicated, and the side is
-    judged against the mid at the trade's own timestamp.
+    judged against the mid at the trade's own timestamp. A 7-lot print within COOLDOWN ticks of
+    the last accepted one cannot be the bot (other teams also trade), so it is ignored.
+    last_ts: one-element list holding the timestamp of the last accepted informed trade.
     """
     sides = {}                                     # ts -> set of informed sides
     counts = {}
@@ -205,7 +208,12 @@ def informed_events(market_trades, mid_at, fallback_ref, now, seen):
         sides.setdefault(ts, set()).add(1 if t.price >= ref else -1)
     for k in [k for k, ts in seen.items() if ts < now - 100 * HIST]:
         del seen[k]
-    return [(max(1, (now - ts) // 100), sd.pop()) for ts, sd in sides.items() if len(sd) == 1]
+    out = []
+    for ts in sorted(sides):
+        if len(sides[ts]) == 1 and ts - last_ts[0] >= 100 * COOLDOWN:
+            last_ts[0] = ts
+            out.append((max(1, (now - ts) // 100), sides[ts].pop()))
+    return out
 
 
 class Trader:
@@ -214,6 +222,7 @@ class Trader:
         self.prev_mid = {}
         self.mid_at = {s: {} for s in LIMIT}        # timestamp -> mid, for judging trade side
         self.seen = {s: {} for s in LIMIT}          # de-dup keys of trades already processed
+        self.last_inf = {s: [-10 ** 9] for s in LIMIT}   # timestamp of last accepted informed trade
         self.live_ticks = 0
         self.last_event = 0                         # live tick of the most recent informed trade
         self.names = set()
@@ -236,7 +245,7 @@ class Trader:
             d = state.order_depths.get(s)
             mids[s] = (max(d.buy_orders) + min(d.sell_orders)) / 2.0 if d and d.buy_orders and d.sell_orders else None
             events[s] = informed_events(state.market_trades.get(s, []), self.mid_at[s], self.prev_mid.get(s),
-                                        now, self.seen[s])
+                                        now, self.seen[s], self.last_inf[s])
         self.model.step(mids, events)
         if all(mids[s] is not None for s in LIMIT):
             self.live_ticks += 1
@@ -268,7 +277,7 @@ class Trader:
         """One compact line per tick: ts|mode|per product: pos, mid, market trades (qty@price/age), own fills, events."""
         now = state.timestamp
         if now == 0:
-            print('LOG ts|mode|SYM pos mid m[qty@px/dt..] o[+-qty@px/dt..] e[(age,sign)..]   dt = trade ts - now in ticks')
+            print('LOG ts|mode|SYM pos mid b[px x vol..] a[px x vol..] m[qty@px/dt..] o[+-qty@px/dt..] e[(age,sign)..]   dt = trade ts - now in ticks')
         parts = [str(now), 'NOEV' if noev else 'EV']
         for s in LIMIT:
             mt = state.market_trades.get(s, [])
@@ -281,7 +290,13 @@ class Trader:
             trades = ','.join(f'{t.quantity}@{t.price}/{(getattr(t, "timestamp", now) - now) // 100}' for t in mt[:6])
             own = ','.join(f'{"+" if t.buyer == "SUBMISSION" else "-"}{t.quantity}@{t.price}/{(getattr(t, "timestamp", now) - now) // 100}'
                            for t in ot[:6])
-            parts.append(f'{s[0]} {state.position.get(s, 0)} {mids[s]} m[{trades}] o[{own}] e{events[s]}')
+            d = state.order_depths.get(s)
+            book = ''
+            if d:
+                bids = ','.join(f'{p}x{v}' for p, v in sorted(d.buy_orders.items(), reverse=True)[:3])
+                asks = ','.join(f'{p}x{-v}' for p, v in sorted(d.sell_orders.items())[:3])
+                book = f' b[{bids}] a[{asks}]'
+            parts.append(f'{s[0]} {state.position.get(s, 0)} {mids[s]}{book} m[{trades}] o[{own}] e{events[s]}')
         print('|'.join(parts))
 
     def orders_for(self, s, d, pos, lim, take_val, make_val):
