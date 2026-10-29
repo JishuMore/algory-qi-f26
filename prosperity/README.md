@@ -48,6 +48,15 @@ So live, the 7-lot informed signal never reached the model; JADE survived on the
 
 New trader: normal / sticky / dup feeds 392k (identical), late 386k, no market trades 193k, zero events 155k.
 
+## Live day 2 post-mortem (`data/live_log_day_2_tail.txt`)
+
+PnL +101.7k, about half the previous run. The log shows market trades arriving normally (7-lot trades with `dt=-1`). The detected events were wrong: 36 of 45 in the excerpt came from our own fills. Live, bots fill our resting quotes in 8–15-lot chunks, which never happens in the historical data, and `own >= 7` turned each of those fills into a fake informed trade pointing against our own fill.
+
+Fixes:
+* informed trades = **market trades of exactly 7 lots only**; own fills are ignored;
+* **taker-only** by default (`Trader.passive`). Our inside quote used to absorb the bot's 7 lots, so the signal never printed as a market trade. Taking only: 383k OOS, identical under both fill rules and every feed mode, so it no longer depends on how live bots fill resting quotes;
+* the log now also prints own fills (`o[+qty@px/dt]`).
+
 ## Reproduce
 
 ```bash

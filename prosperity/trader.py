@@ -12,8 +12,7 @@ Market structure (estimated from days -2/-1, see research/):
 Forecasts E[mid_{t+h} - mid_t] are linear in these structural features plus multi-scale lag
 diffs (past moves partly revert); coefficients come from research/fit.py (ridge, fit on both
 days, cross-day validated). Execution: take when the book is through the forecast value by
-take_edge, otherwise quote one tick inside the touch, with linear inventory skew. ~95% of the
-volume is taken (cost ~3.4/lot AMBER), so execution parameters stay conservative.
+take_edge, with linear inventory skew; resting quotes are off by default (see Trader.passive).
 """
 import math
 
@@ -180,44 +179,33 @@ class Model:
         return sum(x * w for x, w in zip(self.features(s, h), coef[s][h]))
 
 
-def informed_events(market_trades, own_trades, mid_at, fallback_ref, now, seen):
+def informed_events(market_trades, mid_at, fallback_ref, now, seen):
     """Informed-bot trades not seen before, as [(age_in_ticks, +1 buy / -1 sell)].
 
-    Robust to engine differences: each trade is placed by its own timestamp (not assumed to be
-    exactly one tick old), re-sent trades are de-duplicated, and the side is judged against the
-    mid at the trade's own timestamp. The bot's 7 lots can be split between our resting quote
-    (own_trades) and the book (market_trades), so a passive fill of q pairs with a trade of 7 - q.
+    Only market trades of exactly INFORMED_QTY lots count. Our own fills are NOT used: live,
+    other bots hit our resting quotes in all sizes (8-15 lots is common), so own fills carry no
+    information about the informed bot (day-2 live log: 36 of 45 own-fill "events" were false).
+    Each trade is placed by its own timestamp, re-sent trades are de-duplicated, and the side is
+    judged against the mid at the trade's own timestamp.
     """
-    groups = {}                                    # (ts, side) -> [market qtys, own passive qty]
+    sides = {}                                     # ts -> set of informed sides
     counts = {}
-    for kind, lst in (('m', market_trades), ('o', own_trades)):
-        for t in lst:
-            ts = getattr(t, 'timestamp', None)
-            ts = now - 100 if ts is None else ts
-            key = (kind, ts, t.price, t.quantity, t.buyer, t.seller)
-            n = counts.get(key, 0)
-            counts[key] = n + 1
-            if key + (n,) in seen:
-                continue
-            seen[key + (n,)] = ts
-            ref = mid_at.get(ts, fallback_ref)
-            if ref is None:
-                continue
-            if kind == 'm':
-                g = groups.setdefault((ts, 1 if t.price >= ref else -1), [[], 0])
-                g[0].append(t.quantity)
-            elif t.seller == 'SUBMISSION' and t.price > ref:     # bot bought from our ask
-                groups.setdefault((ts, 1), [[], 0])[1] += t.quantity
-            elif t.buyer == 'SUBMISSION' and t.price < ref:      # bot sold into our bid
-                groups.setdefault((ts, -1), [[], 0])[1] += t.quantity
+    for t in market_trades:
+        ts = getattr(t, 'timestamp', None)
+        ts = now - 100 if ts is None else ts
+        key = (ts, t.price, t.quantity, t.buyer, t.seller)
+        n = counts.get(key, 0)
+        counts[key] = n + 1
+        if key + (n,) in seen:
+            continue
+        seen[key + (n,)] = ts
+        ref = mid_at.get(ts, fallback_ref)
+        if ref is None or t.quantity != INFORMED_QTY:
+            continue
+        sides.setdefault(ts, set()).add(1 if t.price >= ref else -1)
     for k in [k for k, ts in seen.items() if ts < now - 100 * HIST]:
         del seen[k]
-    out = []
-    for (ts, side), (qs, own) in groups.items():
-        if (any(q >= INFORMED_QTY for q in qs) or own >= INFORMED_QTY
-                or (0 < own < INFORMED_QTY and (INFORMED_QTY - own) in qs)):
-            out.append((max(1, (now - ts) // 100), side))
-    return out
+    return [(max(1, (now - ts) // 100), sd.pop()) for ts, sd in sides.items() if len(sd) == 1]
 
 
 class Trader:
@@ -236,6 +224,10 @@ class Trader:
         self.take_edge = {'AMBER': 1.25, 'JADE': 1.0}
         self.make_edge = {'AMBER': 2.0, 'JADE': 2.0}
         self.skew = {'AMBER': 0.04, 'JADE': 0.02}
+        # Taker-only by default. Live, bots fill resting quotes in sizes the historical data never
+        # shows, and an inside quote absorbs the informed bot's 7 lots so the signal never prints
+        # as a market trade. Taking only: 382k on days -2/-1 (OOS) under either fill rule.
+        self.passive = {'AMBER': False, 'JADE': False}
 
     def run(self, state):
         now = state.timestamp
@@ -243,8 +235,8 @@ class Trader:
         for s in LIMIT:
             d = state.order_depths.get(s)
             mids[s] = (max(d.buy_orders) + min(d.sell_orders)) / 2.0 if d and d.buy_orders and d.sell_orders else None
-            events[s] = informed_events(state.market_trades.get(s, []), state.own_trades.get(s, []),
-                                        self.mid_at[s], self.prev_mid.get(s), now, self.seen[s])
+            events[s] = informed_events(state.market_trades.get(s, []), self.mid_at[s], self.prev_mid.get(s),
+                                        now, self.seen[s])
         self.model.step(mids, events)
         if all(mids[s] is not None for s in LIMIT):
             self.live_ticks += 1
@@ -276,7 +268,7 @@ class Trader:
         """One compact line per tick: ts|mode|per product: pos, mid, market trades (qty@price/age), own fills, events."""
         now = state.timestamp
         if now == 0:
-            print('LOG ts|mode|SYM pos mid m[qty@px/dt..] o[n] e[(age,sign)..]   dt = trade ts - now in ticks')
+            print('LOG ts|mode|SYM pos mid m[qty@px/dt..] o[+-qty@px/dt..] e[(age,sign)..]   dt = trade ts - now in ticks')
         parts = [str(now), 'NOEV' if noev else 'EV']
         for s in LIMIT:
             mt = state.market_trades.get(s, [])
@@ -285,8 +277,11 @@ class Trader:
                     if nm and nm not in self.names:
                         self.names.add(nm)
                         print(f'NEW_NAME {nm} {s} ts={getattr(t, "timestamp", None)}')
+            ot = state.own_trades.get(s, [])
             trades = ','.join(f'{t.quantity}@{t.price}/{(getattr(t, "timestamp", now) - now) // 100}' for t in mt[:6])
-            parts.append(f'{s[0]} {state.position.get(s, 0)} {mids[s]} m[{trades}] o{len(state.own_trades.get(s, []))} e{events[s]}')
+            own = ','.join(f'{"+" if t.buyer == "SUBMISSION" else "-"}{t.quantity}@{t.price}/{(getattr(t, "timestamp", now) - now) // 100}'
+                           for t in ot[:6])
+            parts.append(f'{s[0]} {state.position.get(s, 0)} {mids[s]} m[{trades}] o[{own}] e{events[s]}')
         print('|'.join(parts))
 
     def orders_for(self, s, d, pos, lim, take_val, make_val):
@@ -308,6 +303,8 @@ class Trader:
             orders.append(Order(s, price, -q))
             sell_cap -= q
 
+        if not self.passive[s]:
+            return orders
         best_bid = max(d.buy_orders)
         best_ask = min(d.sell_orders)
         bid = min(best_bid + 1, int(math.floor(make_val - me)))
