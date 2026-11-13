@@ -7,9 +7,11 @@ Pipeline per tick
   1. Parse books, rebuild the outer "anchor" bot's quote (merged-level aware).
   2. Signed trade flow / level-2 sweep EMAs from last tick's market trades.
   3. Put-call-parity implied spot per crop, basket basis, underlying fair values.
-  4. One IV inversion per strike, EMA/smile blend, Black-Scholes fair for all 42 options.
-  5. Counterparty toxicity tracking from our own fills.
-  6. Inventory/delta-skewed taker + passive orders, then a hard position-limit clamp.
+  4. Defence bookkeeping: own fills -> counterparty markouts, sniper quarantine,
+     queue-starvation streaks, open-interest stampedes, per-symbol drawdown.
+  5. One IV inversion per strike, EMA/smile blend, Black-Scholes fair for all 42 options.
+  6. Cubic-skewed taker + passive orders with anti-sniping vetoes, delta-hedge clamp.
+  7. Order sanitizer: nothing can breach a position limit.
 """
 import json
 import math
@@ -44,12 +46,13 @@ STRIKES = {
 }
 CALL_SYMS = {u: tuple("%s_C_%d" % (u, k) for k in STRIKES[u]) for u in CROPS}
 PUT_SYMS = {u: tuple("%s_P_%d" % (u, k) for k in STRIKES[u]) for u in CROPS}
+OPTION_SYMS = tuple(s for u in CROPS for s in CALL_SYMS[u] + PUT_SYMS[u])
+OI_KEY = {s: "oi_" + s for s in OPTION_SYMS}
 
 LIMITS = {"CARROT": 80, "POTATO": 100, "BROCCOLI": 40, BASKET: 30}
 OPT_LIMIT = 50
-for _u in CROPS:
-    for _s in CALL_SYMS[_u] + PUT_SYMS[_u]:
-        LIMITS[_s] = OPT_LIMIT
+for _s in OPTION_SYMS:
+    LIMITS[_s] = OPT_LIMIT
 
 BASKET_W = {"CARROT": 2.0, "POTATO": 3.0, "BROCCOLI": 1.0}
 BASKET_PREMIUM = 11.10
@@ -71,25 +74,49 @@ A5 = 2.0 / 6.0
 OPT_TAKE_EDGE = 0.65
 OPT_SWEEP_EDGE = 0.90
 OPT_TAKE_SIZE = 12
-OPT_PASSIVE_EDGE = 0.25
 OPT_PASSIVE_SIZE = 10
-OPT_INV_SKEW = 0.015
+OPT_K1 = 0.015
+OPT_K3 = 0.045
 OPT_DELTA_SKEW = 0.004
 
 # Underlying quoting
 UND_TAKE_EDGE = 0.75
 UND_TAKE_SIZE = 15
-UND_PASSIVE_EDGE = 0.30
-UND_INV_SKEW = 0.025
+UND_K1 = 0.025
+UND_K3 = 0.060
 UND_HEDGE_SKEW = 0.008
-BASKET_INV_SKEW = 0.05
 # Passive size per side (the spec leaves this open; tune from backtests).
 UND_PASSIVE_SIZE = {"CARROT": 20, "POTATO": 25, "BROCCOLI": 12, BASKET: 8}
 
-# Counterparty toxicity
-TOXIC_MIN_FILLS = 6
-TOXIC_WINDOW = 10
-TOXIC_EXTRA_EDGE = 0.30
+# ---- Multi-player defence ----
+PASSIVE_EDGE = 0.35          # min distance of any passive quote from reservation price
+VETO_ALPHA = 0.35            # |fair - mid| above which the leaning inner quote is vetoed
+INV_BLOCK_RATIO = 0.75       # no same-direction passive orders beyond this |pos|/limit
+
+MARKOUT_HORIZON = 5          # ticks
+CP_ALPHA = 0.15
+CP_MIN_FILLS = 3
+SNIPER_MARKOUT = -0.15
+SOFT_MARKOUT = 0.30
+QUARANTINE_TICKS = 10
+QUARANTINE_SPREAD = 0.50
+QUARANTINE_SHIFT = 0.35
+
+STARVE_STREAK = 2
+STARVE_EXPIRY = 50           # ticks without new evidence before a streak is forgotten
+STARVE_MIN_SPREAD = 5
+STARVE_STEP_EDGE = 1.10
+
+OI_JUMP = 12
+OI_TICKS = 5
+OI_SPREAD = 0.40
+
+HEDGE_RATIO = 1.25
+HEDGE_SIZE = 10
+
+DD_LIMIT = 1500.0
+DD_TICKS = 200
+DD_TAKE_EDGE = 1.50
 
 PEST_MAP = {"none": 0.0, "low": 1.0, "high": 2.0}
 ME = "SUBMISSION"
@@ -196,6 +223,36 @@ def quad_fit(xs, ys):
     return a, b, c
 
 
+def sanitize_orders(sym, pos, limit, cands):
+    """cands: list of (priority, price, qty); priority 0 = hedge, 1 = taker, 2 = passive.
+
+    Risk-reducing orders go first, then by priority; quantities are clamped to
+    the remaining buy/sell capacity so the symbol can never be rejected.
+    """
+    if len(cands) > 1:
+        if pos > 0:
+            cands.sort(key=lambda c: (0 if c[2] < 0 else 1, c[0]))
+        elif pos < 0:
+            cands.sort(key=lambda c: (0 if c[2] > 0 else 1, c[0]))
+        else:
+            cands.sort(key=lambda c: c[0])
+    rem_buy = limit - pos
+    rem_sell = limit + pos
+    out = []
+    for _, price, q in cands:
+        if q > 0:
+            if q > rem_buy:
+                q = rem_buy
+            rem_buy -= q
+        else:
+            if -q > rem_sell:
+                q = -rem_sell
+            rem_sell += q
+        if q:
+            out.append(Order(sym, int(price), int(q)))
+    return out
+
+
 # ----------------------------------------------------------------------------
 # Trader
 # ----------------------------------------------------------------------------
@@ -214,9 +271,19 @@ class Trader:
         self.iv_seeded = {u: [False] * 7 for u in CROPS}
         self.dte = 15.0
         self.pest = 0.0
-        self.cp_stats = {}      # counterparty -> [n1, sum_adv1, n5, sum_adv5]
-        self.pending = deque()  # (due_tick, symbol, cp, cp_sign, price, horizon)
-        self.toxic_until = {}   # symbol -> tick until which quotes stay defensive
+        # --- defence state ---
+        self.cp_ema = {}        # counterparty -> EMA of our 5-tick markout against them
+        self.cp_fills = {}      # counterparty -> scored fills
+        self.fills = deque()    # (due_tick, symbol, price, our_sign, cp)
+        self.quarantine = {}    # symbol -> (until_tick, fair_shift)
+        self.harvest_until = {}  # symbol -> tick (soft counterparty active)
+        self.last_passive = {}  # symbol -> (bid_px | None, ask_px | None) posted last tick
+        self.starve = {}        # symbol -> [streak, last_evidence_tick]
+        self.prev_oi = {}       # option -> external open interest last tick
+        self.oi_until = {}      # option -> tick
+        self.cash = {}          # symbol -> intraday cash flow
+        self.peak = {}          # symbol -> peak intraday pnl
+        self.reduce_until = {}  # symbol -> tick (reduce-only mode)
 
     # -- persistence fallback (only used if the runner re-instantiates Trader) --
     def _load(self, data):
@@ -231,7 +298,8 @@ class Trader:
                 self.iv_seeded[u] = [bool(x) for x in d["is"][u]]
             self.basis_ema = d.get("be")
             self.dte = d.get("dte", self.dte)
-            self.cp_stats = d.get("cp", {})
+            self.cp_ema = d.get("ce", {})
+            self.cp_fills = d.get("cf", {})
             for u in UNDERLYINGS:
                 self.sv[u] = d["sv"].get(u, 0.0)
                 self.l2[u] = d["l2"].get(u, 0.0)
@@ -248,11 +316,31 @@ class Trader:
             "dte": self.dte,
             "sv": {u: r(v, 4) for u, v in self.sv.items()},
             "l2": {u: r(v, 4) for u, v in self.l2.items()},
-            "cp": self.cp_stats,
+            "ce": self.cp_ema,
+            "cf": self.cp_fills,
         }, separators=(",", ":"))
 
-    # -- observations --
-    def _read_obs(self, state):
+    def _new_day(self):
+        self.prev_und = {}
+        self.prev_tob = {}
+        self.prev_ts = None
+        self.basis_ema = None
+        for u in UNDERLYINGS:
+            self.sv[u] = 0.0
+            self.l2[u] = 0.0
+        self.fills.clear()
+        self.quarantine = {}
+        self.harvest_until = {}
+        self.last_passive = {}
+        self.starve = {}
+        self.prev_oi = {}
+        self.oi_until = {}
+        self.cash = {}
+        self.peak = {}
+        self.reduce_until = {}
+
+    # -- observations: expiry, pest alert, de-spoofed open interest --
+    def _read_obs(self, state, position):
         try:
             pv = state.observations.plainValueObservations
         except AttributeError:
@@ -274,65 +362,232 @@ class Trader:
                     self.pest = float(p)
                 except (TypeError, ValueError):
                     pass
-
-    # -- counterparty toxicity --
-    def _update_counterparties(self, state, mids):
+        prev_oi = self.prev_oi
         tick = self.tick
-        pending = self.pending
-        stats = self.cp_stats
-        # score fills whose horizon has elapsed
-        while pending and pending[0][0] <= tick:
-            _, sym, cp, sign, price, h = pending.popleft()
+        for sym in OPTION_SYMS:
+            v = pv.get(OI_KEY[sym])
+            if v is None:
+                continue
+            try:
+                ext = float(v) - abs(position.get(sym, 0))
+            except (TypeError, ValueError):
+                continue
+            prev = prev_oi.get(sym)
+            if prev is not None and abs(ext - prev) >= OI_JUMP:
+                self.oi_until[sym] = tick + OI_TICKS  # multi-player stampede
+            prev_oi[sym] = ext
+
+    # -- own fills: cash, counterparty markouts, quarantine, queue starvation, drawdown --
+    def _defence(self, state, mids, position, mtrades):
+        tick = self.tick
+        prev_ts = self.prev_ts
+        cp_ema = self.cp_ema
+        cp_fills = self.cp_fills
+
+        # score fills whose 5-tick horizon has elapsed
+        fills = self.fills
+        while fills and fills[0][0] <= tick:
+            _, sym, price, sign, cp = fills.popleft()
             m = mids.get(sym)
             if m is None:
                 continue
-            st = stats.get(cp)
-            if st is None:
-                st = stats[cp] = [0, 0.0, 0, 0.0]
-            adv = (m - price) * sign
-            if h == 1:
-                st[0] += 1
-                st[1] += adv
-            else:
-                st[2] += 1
-                st[3] += adv
+            mo = sign * (m - price)
+            e = cp_ema.get(cp)
+            cp_ema[cp] = mo if e is None else e + CP_ALPHA * (mo - e)
+            cp_fills[cp] = cp_fills.get(cp, 0) + 1
+
+        got_buy = set()
+        got_sell = set()
         own = getattr(state, "own_trades", None)
-        if not own:
-            return
-        prev_ts = self.prev_ts
-        prev_tob = self.prev_tob
-        new = []
-        for sym, trades in own.items():
-            tob = prev_tob.get(sym)
-            if tob is None:
-                continue
-            for t in trades:
-                ts = getattr(t, "timestamp", None)
-                if prev_ts is not None and ts is not None and ts < prev_ts:
-                    continue  # stale fill already processed
-                if t.buyer == ME:
-                    cp = t.seller
-                    sign = -1.0  # counterparty sold to us
-                    passive = tob[1] is None or t.price < tob[1]
-                elif t.seller == ME:
-                    cp = t.buyer
-                    sign = 1.0
-                    passive = tob[0] is None or t.price > tob[0]
-                else:
+        if own:
+            cash = self.cash
+            prev_tob = self.prev_tob
+            for sym, trades in own.items():
+                tob = prev_tob.get(sym)
+                for t in trades:
+                    ts = getattr(t, "timestamp", None)
+                    if prev_ts is not None and ts is not None and ts < prev_ts:
+                        continue  # stale fill already processed
+                    if t.buyer == ME:
+                        sign = 1.0
+                        cp = t.seller
+                        got_buy.add(sym)
+                        passive = tob is not None and (tob[1] is None or t.price < tob[1])
+                    elif t.seller == ME:
+                        sign = -1.0
+                        cp = t.buyer
+                        got_sell.add(sym)
+                        passive = tob is not None and (tob[0] is None or t.price > tob[0])
+                    else:
+                        continue
+                    cash[sym] = cash.get(sym, 0.0) - sign * t.price * t.quantity
+                    if not passive:
+                        continue  # we were the aggressor: says nothing about the counterparty
+                    st = self.starve.get(sym)
+                    if st is not None:
+                        st[0] = 0
+                    if not cp or cp == ME:
+                        continue
+                    fills.append((tick + MARKOUT_HORIZON - 1, sym, t.price, sign, cp))
+                    if cp_fills.get(cp, 0) >= CP_MIN_FILLS:
+                        e = cp_ema[cp]
+                        if e < SNIPER_MARKOUT:
+                            # follow the sniper's direction instead of fighting it
+                            self.quarantine[sym] = (tick + QUARANTINE_TICKS, -QUARANTINE_SHIFT * sign)
+                        elif e > SOFT_MARKOUT:
+                            self.harvest_until[sym] = tick + QUARANTINE_TICKS
+            if len(fills) > 4000:
+                fills.clear()
+
+        # queue starvation: the market traded through our resting price but we got nothing
+        if mtrades:
+            starve = self.starve
+            for sym, (lb, la) in self.last_passive.items():
+                tr = mtrades.get(sym)
+                if not tr:
                     continue
-                if not cp or cp == ME or not passive:
-                    continue  # only fills where they hit our resting quote
-                new.append((sym, cp, sign, t.price))
-                st = stats.get(cp)
-                if st is not None and st[2] >= TOXIC_MIN_FILLS and st[3] > 0.0 and st[1] > 0.0:
-                    self.toxic_until[sym] = tick + TOXIC_WINDOW
-        # queue horizon-1 entries first so the deque stays sorted by due tick
-        for sym, cp, sign, price in new:
-            pending.append((tick, sym, cp, sign, price, 1))
-        for sym, cp, sign, price in new:
-            pending.append((tick + 4, sym, cp, sign, price, 5))
-        if len(pending) > 4000:
-            pending.clear()
+                hit = False
+                for t in tr:
+                    ts = getattr(t, "timestamp", None)
+                    if prev_ts is not None and ts is not None and ts < prev_ts:
+                        continue
+                    p = t.price
+                    if (lb is not None and p <= lb and sym not in got_buy) or \
+                            (la is not None and p >= la and sym not in got_sell):
+                        hit = True
+                        break
+                if hit:
+                    st = starve.get(sym)
+                    if st is None:
+                        starve[sym] = [1, tick]
+                    else:
+                        st[0] += 1
+                        st[1] = tick
+
+        # per-symbol drawdown circuit breaker
+        peak = self.peak
+        for sym, c in self.cash.items():
+            m = mids.get(sym)
+            if m is None:
+                continue
+            pnl = c + position.get(sym, 0) * m
+            pk = peak.get(sym)
+            if pk is None or pnl > pk:
+                peak[sym] = pnl
+            elif pk - pnl > DD_LIMIT:
+                self.reduce_until[sym] = tick + DD_TICKS
+                peak[sym] = pnl  # re-arm from here
+
+    # -- order generation for one symbol --
+    def _quote(self, sym, bk, pos, limit, fair, extra_skew, is_opt, hedge):
+        """Returns sanitized orders. `hedge` > 0 forces a buy at ask1, < 0 a sell at bid1."""
+        bid1, bv1, bid2, bv2, ask1, av1, ask2, av2 = bk
+        tick = self.tick
+        if is_opt:
+            k1, k3 = OPT_K1, OPT_K3
+            take_edge, take_size, size = OPT_TAKE_EDGE, OPT_TAKE_SIZE, OPT_PASSIVE_SIZE
+        else:
+            k1, k3 = UND_K1, UND_K3
+            take_edge, take_size, size = UND_TAKE_EDGE, UND_TAKE_SIZE, UND_PASSIVE_SIZE[sym]
+
+        tox = 0.0
+        q = self.quarantine.get(sym)
+        if q is not None and q[0] >= tick:
+            tox += QUARANTINE_SPREAD
+            fair += q[1]
+            size = max(1, size // 2)
+        elif self.harvest_until.get(sym, -1) >= tick:
+            size += size // 2
+        if is_opt and self.oi_until.get(sym, -1) >= tick:
+            tox += OI_SPREAD
+
+        ratio = pos / limit
+        res = fair - limit * (k1 * ratio + k3 * ratio * ratio * ratio) - extra_skew
+        reduce_only = self.reduce_until.get(sym, -1) >= tick
+        buy_cap = limit - pos
+        sell_cap = limit + pos
+        cands = []
+
+        if hedge > 0 and ask1 is not None:
+            cands.append((0, ask1, min(hedge, av1, buy_cap)))
+        elif hedge < 0 and bid1 is not None:
+            cands.append((0, bid1, -min(-hedge, bv1, sell_cap)))
+
+        # ---- takers ----
+        if ask1 is not None and hedge >= 0:
+            edge = res - ask1
+            if edge > take_edge:
+                cap = take_size
+                if reduce_only and edge <= DD_TAKE_EDGE:
+                    cap = -pos if pos < 0 else 0
+                qty = min(av1, buy_cap, cap)
+                if qty > 0:
+                    cands.append((1, ask1, qty))
+                    buy_cap -= qty
+                    if is_opt and ask2 is not None and res - ask2 > OPT_SWEEP_EDGE and not reduce_only:
+                        qty = min(av2, buy_cap, take_size)
+                        if qty > 0:
+                            cands.append((1, ask2, qty))
+                            buy_cap -= qty
+        if bid1 is not None and hedge <= 0:
+            edge = bid1 - res
+            if edge > take_edge:
+                cap = take_size
+                if reduce_only and edge <= DD_TAKE_EDGE:
+                    cap = pos if pos > 0 else 0
+                qty = min(bv1, sell_cap, cap)
+                if qty > 0:
+                    cands.append((1, bid1, -qty))
+                    sell_cap -= qty
+                    if is_opt and bid2 is not None and bid2 - res > OPT_SWEEP_EDGE and not reduce_only:
+                        qty = min(bv2, sell_cap, take_size)
+                        if qty > 0:
+                            cands.append((1, bid2, -qty))
+                            sell_cap -= qty
+
+        # ---- passive quotes ----
+        lb = la = None
+        if bid1 is not None and ask1 is not None:
+            pb = bid1 + 1
+            pa = ask1 - 1
+            st = self.starve.get(sym)
+            if st is not None and st[0] >= STARVE_STREAK:
+                if tick - st[1] > STARVE_EXPIRY:
+                    st[0] = 0
+                else:
+                    # a faster player owns the penny queue: jump it if it pays, else fall back
+                    wide = ask1 - bid1 >= STARVE_MIN_SPREAD
+                    pb = bid1 + 2 if (wide and res - (bid1 + 2) > STARVE_STEP_EDGE) else bid1
+                    pa = ask1 - 2 if (wide and (ask1 - 2) - res > STARVE_STEP_EDGE) else ask1
+            edge = PASSIVE_EDGE + tox
+            pb = min(pb, _floor(res - edge))
+            pa = max(pa, _ceil(res + edge))
+            # anti-sniping veto: never rest inside the spread against our own alpha
+            alpha = fair - 0.5 * (bid1 + ask1)
+            if alpha > VETO_ALPHA and pa < ask1:
+                pa = ask1
+            elif alpha < -VETO_ALPHA and pb > bid1:
+                pb = bid1
+            if pb < pa:
+                if bid1 <= pb < ask1 and buy_cap > 0 and ratio <= INV_BLOCK_RATIO and hedge >= 0:
+                    qty = min(size, buy_cap)
+                    if reduce_only:
+                        qty = min(qty, -pos) if pos < 0 else 0
+                    if qty > 0:
+                        cands.append((2, pb, qty))
+                        lb = pb
+                if bid1 < pa <= ask1 and sell_cap > 0 and ratio >= -INV_BLOCK_RATIO and hedge <= 0:
+                    qty = min(size, sell_cap)
+                    if reduce_only:
+                        qty = min(qty, pos) if pos > 0 else 0
+                    if qty > 0:
+                        cands.append((2, pa, -qty))
+                        la = pa
+        if lb is not None or la is not None:
+            self._new_passive[sym] = (lb, la)
+        if not cands:
+            return None
+        return sanitize_orders(sym, pos, limit, cands)
 
     # -- main entry point --
     def run(self, state):
@@ -340,24 +595,15 @@ class Trader:
             self._load(getattr(state, "traderData", ""))
         ts = state.timestamp
         if self.prev_ts is not None and ts < self.prev_ts:
-            # new day inside the same process: drop intraday flow state
-            self.prev_und = {}
-            self.prev_tob = {}
-            self.pending.clear()
-            self.toxic_until = {}
-            self.basis_ema = None
-            for u in UNDERLYINGS:
-                self.sv[u] = 0.0
-                self.l2[u] = 0.0
-            self.prev_ts = None
+            self._new_day()
 
-        self._read_obs(state)
         depths = state.order_depths
         position = state.position
-        tick = self.tick
+        self._read_obs(state, position)
         result = {}
         mids = {}
         tob = {}
+        self._new_passive = {}
 
         # ---------------- 1. underlying books ----------------
         ubook = {}
@@ -476,15 +722,15 @@ class Trader:
                 f += 0.25 * (synth - m)
             s_fair[BASKET] = f
 
-        # ---------------- 5. counterparty toxicity ----------------
-        self._update_counterparties(state, mids)
-        toxic_until = self.toxic_until
+        # ---------------- 5. multi-player defence bookkeeping ----------------
+        self._defence(state, mids, position, mtrades)
 
         # ---------------- 6. options: IV, fair values, orders ----------------
         T = self.dte / 365.0
         if T < 1e-6:
             T = 1e-6
         net_delta = {}
+        quote = self._quote
         for u in CROPS:
             sp = s_pcp.get(u)
             sf = s_fair.get(u)
@@ -516,7 +762,7 @@ class Trader:
                 intrinsic = sp - K if sp > K else 0.0
                 if target - intrinsic < 0.02:
                     continue
-                iv = implied_vol(sp, K, T, target, iv20[i], 4 if seeded[i] else 15)
+                iv = implied_vol(sp, K, T, target, iv20[i], 3 if seeded[i] else 15)
                 if iv is None:
                     continue
                 if seeded[i]:
@@ -565,124 +811,44 @@ class Trader:
             net_delta[u] = nd
 
             for i in range(7):
-                for sym, fair, delta in ((cs[i], fair_c[i], dlt[i]), (ps[i], fair_p[i], dlt[i] - 1.0)):
-                    bk = obook.get(sym)
-                    if bk is None:
-                        continue
-                    bid1, bv1, bid2, bv2, ask1, av1, ask2, av2 = bk
-                    pos = position.get(sym, 0)
-                    res = fair - OPT_INV_SKEW * pos - OPT_DELTA_SKEW * delta * nd
-                    buy_cap = OPT_LIMIT - pos
-                    sell_cap = OPT_LIMIT + pos
-                    orders = []
-                    if ask1 is not None and buy_cap > 0 and res - ask1 > OPT_TAKE_EDGE:
-                        q = min(av1, buy_cap, OPT_TAKE_SIZE)
-                        if q > 0:
-                            orders.append(Order(sym, int(ask1), int(q)))
-                            buy_cap -= q
-                        if ask2 is not None and buy_cap > 0 and res - ask2 > OPT_SWEEP_EDGE:
-                            q = min(av2, buy_cap, OPT_TAKE_SIZE)
-                            if q > 0:
-                                orders.append(Order(sym, int(ask2), int(q)))
-                                buy_cap -= q
-                    if bid1 is not None and sell_cap > 0 and bid1 - res > OPT_TAKE_EDGE:
-                        q = min(bv1, sell_cap, OPT_TAKE_SIZE)
-                        if q > 0:
-                            orders.append(Order(sym, int(bid1), -int(q)))
-                            sell_cap -= q
-                        if bid2 is not None and sell_cap > 0 and bid2 - res > OPT_SWEEP_EDGE:
-                            q = min(bv2, sell_cap, OPT_TAKE_SIZE)
-                            if q > 0:
-                                orders.append(Order(sym, int(bid2), -int(q)))
-                                sell_cap -= q
-                    if bid1 is not None and ask1 is not None:
-                        edge = OPT_PASSIVE_EDGE
-                        size = OPT_PASSIVE_SIZE
-                        if toxic_until.get(sym, -1) >= tick:
-                            edge += TOXIC_EXTRA_EDGE
-                            size //= 2
-                        pb = min(bid1 + 1, _floor(res - edge))
-                        pa = max(ask1 - 1, _ceil(res + edge))
-                        if pb < pa:
-                            if bid1 <= pb < ask1 and buy_cap > 0:
-                                orders.append(Order(sym, int(pb), int(min(size, buy_cap))))
-                            if bid1 < pa <= ask1 and sell_cap > 0:
-                                orders.append(Order(sym, int(pa), -int(min(size, sell_cap))))
-                    if orders:
-                        result[sym] = orders
+                dc = dlt[i]
+                bk = obook.get(cs[i])
+                if bk is not None:
+                    o = quote(cs[i], bk, position.get(cs[i], 0), OPT_LIMIT, fair_c[i],
+                              OPT_DELTA_SKEW * dc * nd, True, 0)
+                    if o:
+                        result[cs[i]] = o
+                bk = obook.get(ps[i])
+                if bk is not None:
+                    o = quote(ps[i], bk, position.get(ps[i], 0), OPT_LIMIT, fair_p[i],
+                              OPT_DELTA_SKEW * (dc - 1.0) * nd, True, 0)
+                    if o:
+                        result[ps[i]] = o
 
         # ---------------- 7. underlyings: orders ----------------
+        pos_basket = position.get(BASKET, 0)
         for u in UNDERLYINGS:
             bk = ubook.get(u)
             if bk is None or u not in s_fair:
                 continue
-            bid1, bv1, bid2, bv2, ask1, av1, ask2, av2 = bk
             pos = position.get(u, 0)
             limit = LIMITS[u]
-            if u == BASKET:
-                res = s_fair[u] - BASKET_INV_SKEW * pos
-            else:
-                res = s_fair[u] - UND_INV_SKEW * pos - UND_HEDGE_SKEW * net_delta.get(u, 0.0)
-            buy_cap = limit - pos
-            sell_cap = limit + pos
-            orders = []
-            if buy_cap > 0 and res - ask1 > UND_TAKE_EDGE:
-                q = min(av1, buy_cap, UND_TAKE_SIZE)
-                if q > 0:
-                    orders.append(Order(u, int(ask1), int(q)))
-                    buy_cap -= q
-            if sell_cap > 0 and bid1 - res > UND_TAKE_EDGE:
-                q = min(bv1, sell_cap, UND_TAKE_SIZE)
-                if q > 0:
-                    orders.append(Order(u, int(bid1), -int(q)))
-                    sell_cap -= q
-            edge = UND_PASSIVE_EDGE
-            size = UND_PASSIVE_SIZE[u]
-            if toxic_until.get(u, -1) >= tick:
-                edge += TOXIC_EXTRA_EDGE
-                size //= 2
-            pb = min(bid1 + 1, _floor(res - edge))
-            pa = max(ask1 - 1, _ceil(res + edge))
-            if pb < pa:
-                if bid1 <= pb < ask1 and buy_cap > 0:
-                    orders.append(Order(u, int(pb), int(min(size, buy_cap))))
-                if bid1 < pa <= ask1 and sell_cap > 0:
-                    orders.append(Order(u, int(pa), -int(min(size, sell_cap))))
-            if orders:
-                result[u] = orders
+            extra = 0.0
+            hedge = 0
+            if u != BASKET:
+                nd = net_delta.get(u, 0.0)
+                extra = UND_HEDGE_SKEW * nd
+                tot = pos + BASKET_W[u] * pos_basket + nd
+                if tot < -HEDGE_RATIO * limit and pos < limit:
+                    hedge = HEDGE_SIZE
+                elif tot > HEDGE_RATIO * limit and pos > -limit:
+                    hedge = -HEDGE_SIZE
+            o = quote(u, bk, pos, limit, s_fair[u], extra, False, hedge)
+            if o:
+                result[u] = o
 
-        # ---------------- 8. hard position-limit clamp ----------------
-        for sym, orders in result.items():
-            limit = LIMITS.get(sym)
-            if limit is None:
-                continue
-            pos = position.get(sym, 0)
-            buy_cap = limit - pos
-            sell_cap = limit + pos
-            buys = sells = 0
-            ok = True
-            for o in orders:
-                if o.quantity > 0:
-                    buys += o.quantity
-                else:
-                    sells -= o.quantity
-            if buys > buy_cap or sells > sell_cap:
-                ok = False
-            if not ok:
-                kept = []
-                for o in orders:
-                    q = o.quantity
-                    if q > 0:
-                        q = min(q, buy_cap)
-                        buy_cap -= q
-                    else:
-                        q = -min(-q, sell_cap)
-                        sell_cap += q
-                    if q:
-                        kept.append(Order(sym, o.price, q))
-                result[sym] = kept
-
+        self.last_passive = self._new_passive
         self.prev_tob = tob
         self.prev_ts = ts
-        self.tick = tick + 1
+        self.tick += 1
         return result, 0, self._dump()
