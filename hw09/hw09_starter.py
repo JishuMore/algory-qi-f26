@@ -1,11 +1,3 @@
-"""Homework 9 — Volatility, tails, and value at risk. Algory QI Education, Fall 2026
-
-Usage:
-    python hw09_starter.py                  # downloads SPY from Yahoo (20 years)
-    python hw09_starter.py --csv prices.csv # offline: CSV with Date,Close columns
-
-Outputs go to ./hw09_output/ (plots and a results.txt log).
-"""
 import argparse
 import math
 from pathlib import Path
@@ -20,10 +12,6 @@ OUT = Path(__file__).resolve().parent / "hw09_output"
 
 
 def recovery_needed(loss_fraction):
-    """Gain required to get back to even after a loss.
-    recovery_needed(0.50) -> 1.00     lose half, need to double
-    recovery_needed(0.75) -> 3.00     lose three quarters, need +300%
-    """
     if not 0.0 <= loss_fraction < 1.0:
         raise ValueError("loss_fraction must be in [0, 1)")
 
@@ -31,21 +19,15 @@ def recovery_needed(loss_fraction):
 
 
 def annualise_vol(daily_vol, days=TRADING_DAYS):
-    """Scale a daily standard deviation to annual. Assumes days are independent."""
     return daily_vol * math.sqrt(days)
 
 
 def var(returns, confidence=0.95):
-    """Value at risk, as a return. A left-tail quantile, so it comes out negative."""
     r = np.asarray(returns, dtype=float)
     return float(np.quantile(r, 1.0 - confidence))
 
 
 def cvar(returns, confidence=0.95):
-    """Mean of everything at or beyond the VaR threshold.
-    Must always be worse than var() on the same inputs. If it is not, you have
-    averaged the wrong side of the distribution.
-    """
     r = np.asarray(returns, dtype=float)
     threshold = var(r, confidence)
     tail = r[r <= threshold]
@@ -53,10 +35,6 @@ def cvar(returns, confidence=0.95):
 
 
 def simulate_paths(start, drift, vol, days=TRADING_DAYS, paths=1000, seed=0):
-    """Geometric Brownian motion. Return the FINAL value of each path.
-    drift is the arithmetic annual drift mu in dS = mu*S*dt + vol*S*dW, so the
-    log-return drift is (mu - vol^2/2). vol is annual.
-    """
     rng = np.random.default_rng(seed)
     dt = 1.0 / days
     z = rng.standard_normal((paths, days))
@@ -65,7 +43,6 @@ def simulate_paths(start, drift, vol, days=TRADING_DAYS, paths=1000, seed=0):
 
 
 def bootstrap_paths(start, daily_returns, days=TRADING_DAYS, paths=1000, seed=0):
-    """Resample actual daily returns with replacement and compound. Return FINAL values."""
     rng = np.random.default_rng(seed)
     r = np.asarray(daily_returns, dtype=float)
     idx = rng.integers(0, len(r), size=(paths, days))
@@ -73,7 +50,6 @@ def bootstrap_paths(start, daily_returns, days=TRADING_DAYS, paths=1000, seed=0)
 
 
 def load_closes(csv_path=None, years=20):
-    """Daily closes for SPY, last `years` years. Dividend-adjusted via auto_adjust."""
     if csv_path:
         df = pd.read_csv(csv_path, parse_dates=["Date"], index_col="Date")
         closes = df["Close"]
