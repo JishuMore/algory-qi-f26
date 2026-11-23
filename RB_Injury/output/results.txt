@@ -1,0 +1,63 @@
+RB-games: 12944   train 8625  val 1483  test 2836
+Positive rate  train 7.270%  val 6.473%  test 7.511%
+Positives      train 627  val 96  test 213
+
+Validation (2022) model selection - XGBoost, all features:
+  depth=1  rounds=161  val logloss=0.2356  val AUC=0.621
+  depth=2  rounds=159  val logloss=0.2357  val AUC=0.613
+  depth=3  rounds=105  val logloss=0.2355  val AUC=0.614
+  -> chosen depth=3, rounds=105
+
+TEST (2023-2024), fitted on 2016-2022:
+Base rate (predict the average)              AUC 0.500  PR-AUC 0.075
+Logistic, core features                      AUC 0.582 [95% CI 0.541-0.624]  PR-AUC 0.104 (base 0.075)  logloss 0.2659
+XGBoost, all features                        AUC 0.601 [95% CI 0.562-0.640]  PR-AUC 0.130 (base 0.075)  logloss 0.2611
+XGBoost, no current-listing feature          AUC 0.594 [95% CI 0.556-0.633]  PR-AUC 0.118 (base 0.075)  logloss 0.2623
+
+Single-feature AUC on test (direction-agnostic max(AUC,1-AUC)):
+  carries                    0.533  (higher -> more injury)
+  targets                    0.527  (higher -> more injury)
+  touches_roll3              0.571  (higher -> more injury)
+  season_touches             0.577  (higher -> more injury)
+  career_touches             0.532  (higher -> more injury)
+  career_games               0.515  (higher -> more injury)
+  age                        0.521  (lower -> more injury)
+  prior_season_qdo_weeks     0.514  (higher -> more injury)
+  listed_now                 0.529  (higher -> more injury)
+
+Permutation importance (drop in test AUC when feature is shuffled, 20 repeats):
+  touches_roll3              +0.0618 (sd 0.0170)
+  season_touches             +0.0144 (sd 0.0089)
+  carries                    +0.0117 (sd 0.0051)
+  listed_now                 +0.0092 (sd 0.0040)
+  prior_season_qdo_weeks     +0.0083 (sd 0.0094)
+  career_touches             +0.0042 (sd 0.0040)
+  targets                    +0.0032 (sd 0.0055)
+  career_games               +0.0006 (sd 0.0020)
+  age                        -0.0022 (sd 0.0038)
+
+Control: XGBoost trained on SHUFFLED labels -> test AUC 0.501
+
+Raw injury rate next week, by touches this game (all RB-games 2016-2024):
+              n   rate
+b                     
+(-1, 5]    4975  0.062
+(5, 10]    2499  0.074
+(10, 15]   2113  0.083
+(15, 20]   1706  0.080
+(20, 25]   1052  0.091
+(25, 100]   599  0.055
+
+Raw injury rate next week, by current listing status:
+                n   rate
+listed_now              
+0.0         12364  0.064
+1.0           580  0.247
+
+Raw injury rate next week, by prior-season QDO weeks:
+             n   rate
+b                    
+(-1, 0]   7457  0.062
+(0, 2]    2964  0.073
+(2, 5]    1955  0.107
+(5, 100]   568  0.083
