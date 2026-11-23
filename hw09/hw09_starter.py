@@ -21,14 +21,12 @@ OUT = Path(__file__).resolve().parent / "hw09_output"
 
 def recovery_needed(loss_fraction):
     """Gain required to get back to even after a loss.
-
     recovery_needed(0.50) -> 1.00     lose half, need to double
     recovery_needed(0.75) -> 3.00     lose three quarters, need +300%
     """
     if not 0.0 <= loss_fraction < 1.0:
         raise ValueError("loss_fraction must be in [0, 1)")
-    # After a loss L the value is (1 - L); to get back to 1 you need a gain g
-    # with (1 - L)(1 + g) = 1, so g = L / (1 - L).
+
     return loss_fraction / (1.0 - loss_fraction)
 
 
@@ -45,7 +43,6 @@ def var(returns, confidence=0.95):
 
 def cvar(returns, confidence=0.95):
     """Mean of everything at or beyond the VaR threshold.
-
     Must always be worse than var() on the same inputs. If it is not, you have
     averaged the wrong side of the distribution.
     """
@@ -57,7 +54,6 @@ def cvar(returns, confidence=0.95):
 
 def simulate_paths(start, drift, vol, days=TRADING_DAYS, paths=1000, seed=0):
     """Geometric Brownian motion. Return the FINAL value of each path.
-
     drift is the arithmetic annual drift mu in dS = mu*S*dt + vol*S*dW, so the
     log-return drift is (mu - vol^2/2). vol is annual.
     """
@@ -75,8 +71,6 @@ def bootstrap_paths(start, daily_returns, days=TRADING_DAYS, paths=1000, seed=0)
     idx = rng.integers(0, len(r), size=(paths, days))
     return start * np.prod(1.0 + r[idx], axis=1)
 
-
-# ---------------------------------------------------------------- data
 
 def load_closes(csv_path=None, years=20):
     """Daily closes for SPY, last `years` years. Dividend-adjusted via auto_adjust."""
@@ -99,13 +93,10 @@ def say(log, text=""):
     log.append(text)
 
 
-# ---------------------------------------------------------------- main
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv", help="offline CSV with Date,Close columns")
     args = parser.parse_args()
-
     OUT.mkdir(exist_ok=True)
     log = []
     closes = load_closes(args.csv)
@@ -114,22 +105,19 @@ def main():
     say(log, f"Data: {closes.index[0].date()} to {closes.index[-1].date()}, {n} daily returns")
     say(log, "")
 
-    # ---- Q1/Q2: scaled vs directly measured annual volatility
     say(log, "=== Q1/Q2 volatility scaling ===")
     daily_vol = daily.std(ddof=1)
     ann_scaled = annualise_vol(daily_vol)
     say(log, f"Daily volatility:            {daily_vol:.4%}")
     say(log, f"Annualised (x sqrt 252):     {ann_scaled:.2%}")
-
     year_end = closes.resample("YE").last()
     yearly = year_end.pct_change().dropna()
     last_year = closes.index[-1].year
-    yearly = yearly[yearly.index.year < last_year]   # drop the partial current year
+    yearly = yearly[yearly.index.year < last_year]
     ann_direct = yearly.std(ddof=1)
     say(log, f"Direct annual vol (calendar-year returns, n={len(yearly)}): {ann_direct:.2%}")
     say(log, f"Ratio direct / scaled:       {ann_direct / ann_scaled:.3f}")
 
-    # Serial dependence: does a down day predict a down day? (the hw3 test)
     r = daily.values
     down = r < 0
     p_down = down.mean()
@@ -142,7 +130,6 @@ def main():
     say(log, f"Variance ratio VR(5) = {variance_ratio_5:.3f}   (1.0 means days are independent)")
     say(log, "")
 
-    # ---- Q3: rolling 60-day volatility
     say(log, "=== Q3 rolling 60-day volatility (annualised) ===")
     roll = daily.rolling(60).std(ddof=1).dropna() * math.sqrt(TRADING_DAYS)
     hi_date, hi_val = roll.idxmax(), roll.max()
@@ -150,7 +137,6 @@ def main():
     say(log, f"Highest: {hi_val:.2%} on {hi_date.date()}")
     say(log, f"Lowest:  {lo_val:.2%} on {lo_date.date()}")
 
-    # Two largest spikes, each at least 120 trading days apart, so one event is not counted twice.
     spikes = []
     for date in roll.sort_values(ascending=False).index:
         if all(abs((date - s).days) > 180 for s in spikes):
@@ -159,7 +145,6 @@ def main():
             break
     for i, s in enumerate(spikes, 1):
         say(log, f"Spike {i}: {roll[s]:.2%} on {s.date()}")
-
     fig, ax = plt.subplots(figsize=(10, 4.5))
     ax.plot(roll.index, roll.values, lw=0.9)
     ax.scatter([hi_date, lo_date], [hi_val, lo_val], color="red", zorder=3)
@@ -174,7 +159,6 @@ def main():
     plt.close(fig)
     say(log, "")
 
-    # ---- Q4/Q5: shape of returns and four-sigma days
     say(log, "=== Q4/Q5 shape and four-sigma days ===")
     mu, sd = daily.mean(), daily.std(ddof=1)
     skew = daily.skew()
@@ -184,13 +168,11 @@ def main():
     say(log, f"Skewness: {skew:+.3f}")
     say(log, f"Excess kurtosis: {exc_kurt:+.3f}")
     say(log, f"Days beyond 4 standard deviations (two-sided): {actual_4s}")
-
-    expected_4s = n * math.erfc(4 / math.sqrt(2))   # two-sided normal tail P(|Z|>4)
+    expected_4s = n * math.erfc(4 / math.sqrt(2))
     say(log, f"Expected under normality: {expected_4s:.3f}")
     say(log, f"Actual: {actual_4s}")
     ratio = actual_4s / expected_4s if expected_4s > 0 else float("inf")
     say(log, f"Ratio actual / expected: {ratio:.1f}")
-
     xs = np.linspace(daily.min(), daily.max(), 400)
     pdf = np.exp(-0.5 * ((xs - mu) / sd) ** 2) / (sd * math.sqrt(2 * math.pi))
     fig, ax = plt.subplots(figsize=(9, 4.5))
@@ -205,13 +187,11 @@ def main():
     plt.close(fig)
     say(log, "")
 
-    # ---- Q6: loss and recovery
     say(log, "=== Q6 loss and recovery ===")
     losses = [0.10, 0.25, 0.50, 0.75, 0.90]
     recoveries = [recovery_needed(L) for L in losses]
     for L, g in zip(losses, recoveries):
         say(log, f"Lose {L:.0%} -> need +{g:.1%} to get back to even")
-
     fig, ax = plt.subplots(figsize=(8, 4.5))
     bars = ax.bar([f"-{L:.0%}" for L in losses], [g * 100 for g in recoveries], color="steelblue")
     ax.bar_label(bars, labels=[f"+{g:.0%}" for g in recoveries], padding=3)
@@ -223,34 +203,29 @@ def main():
     plt.close(fig)
     say(log, "")
 
-    # ---- Q7/Q8/Q9: Monte Carlo, VaR, CVaR, bootstrap
     say(log, "=== Q7/Q8/Q9 Monte Carlo, VaR and CVaR ===")
     start = 100_000.0
     paths = 10_000
     log_daily = np.log1p(daily.values)
     sigma_ann = daily_vol * math.sqrt(TRADING_DAYS)
     mu_log_ann = log_daily.mean() * TRADING_DAYS
-    drift_ann = mu_log_ann + 0.5 * sigma_ann**2          # arithmetic drift for the GBM
+    drift_ann = mu_log_ann + 0.5 * sigma_ann**2
     say(log, f"GBM inputs: drift (arithmetic) = {drift_ann:.2%}, vol = {sigma_ann:.2%}")
-
     gbm_final = simulate_paths(start, drift_ann, sigma_ann, paths=paths, seed=1)
     say(log, "Q7 GBM one-year final value ($):")
     say(log, f"  mean    {gbm_final.mean():>12,.0f}")
     say(log, f"  median  {np.median(gbm_final):>12,.0f}")
     say(log, f"  5th pct {np.percentile(gbm_final, 5):>12,.0f}")
     say(log, f"  95th pct{np.percentile(gbm_final, 95):>12,.0f}")
-
     boot_final = bootstrap_paths(start, daily.values, paths=paths, seed=2)
     gbm_ret = gbm_final / start - 1.0
     boot_ret = boot_final / start - 1.0
-
     say(log, "")
     say(log, "Q8/Q9 one-year VaR and CVaR at 95% (loss shown as $ and % of $100,000)")
     say(log, f"{'method':<12}{'VaR $':>14}{'VaR %':>9}{'CVaR $':>14}{'CVaR %':>9}")
     for name, rets in [("GBM", gbm_ret), ("Bootstrap", boot_ret)]:
         v, c = var(rets, 0.95), cvar(rets, 0.95)
         say(log, f"{name:<12}{-v * start:>14,.0f}{-v:>9.2%}{-c * start:>14,.0f}{-c:>9.2%}")
-
     fig, ax = plt.subplots(figsize=(9, 4.5))
     ax.hist(gbm_final, bins=120, alpha=0.5, label="GBM (normal)", density=True)
     ax.hist(boot_final, bins=120, alpha=0.5, label="Bootstrap (actual returns)", density=True)
@@ -262,7 +237,6 @@ def main():
     fig.tight_layout()
     fig.savefig(OUT / "q7_monte_carlo.png", dpi=150)
     plt.close(fig)
-
     (OUT / "results.txt").write_text("\n".join(log) + "\n")
     print(f"\nWrote plots and results.txt to {OUT}")
 
