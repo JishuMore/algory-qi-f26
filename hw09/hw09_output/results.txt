@@ -1,0 +1,44 @@
+Data: 2006-10-09 to 2026-10-07, 5029 daily returns
+
+=== Q1/Q2 volatility scaling ===
+Daily volatility:            1.2312%
+Annualised (x sqrt 252):     19.54%
+Direct annual vol (calendar-year returns, n=19): 17.77%
+Ratio direct / scaled:       0.909
+P(down) = 0.449   P(down tomorrow | down today) = 0.429
+Lag-1 autocorrelation of daily returns: -0.1228
+Variance ratio VR(5) = 0.796   (1.0 means days are independent)
+
+=== Q3 rolling 60-day volatility (annualised) ===
+Highest: 73.99% on 2008-12-08
+Lowest:  4.97% on 2017-11-15
+Spike 1: 73.99% on 2008-12-08
+Spike 2: 63.60% on 2020-05-18
+
+=== Q4/Q5 shape and four-sigma days ===
+Skewness: -0.205
+Excess kurtosis: +12.538
+Days beyond 4 standard deviations (two-sided): 37
+Expected under normality: 0.319
+Actual: 37
+Ratio actual / expected: 116.2
+
+=== Q6 loss and recovery ===
+Lose 10% -> need +11.1% to get back to even
+Lose 25% -> need +33.3% to get back to even
+Lose 50% -> need +100.0% to get back to even
+Lose 75% -> need +300.0% to get back to even
+Lose 90% -> need +900.0% to get back to even
+
+=== Q7/Q8/Q9 Monte Carlo, VaR and CVaR ===
+GBM inputs: drift (arithmetic) = 12.60%, vol = 19.54%
+Q7 GBM one-year final value ($):
+  mean         113,696
+  median       111,581
+  5th pct       81,150
+  95th pct     153,687
+
+Q8/Q9 one-year VaR and CVaR at 95% (loss shown as $ and % of $100,000)
+method               VaR $    VaR %        CVaR $   CVaR %
+GBM                 18,850   18.85%        24,933   24.93%
+Bootstrap           19,059   19.06%        25,505   25.51%
